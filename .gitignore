@@ -1,0 +1,10 @@
+/_bmad
+/_bmad-output
+/.agent
+/.agents
+/.claude
+/design-artifacts
+/docs
+
+/ux-simulator/node_modules
+/ux-simulator/.env
