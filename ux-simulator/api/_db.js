@@ -17,7 +17,14 @@ export async function createTables() {
   await db`CREATE TABLE IF NOT EXISTS communities (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, category_id INTEGER REFERENCES community_categories(id), type TEXT, city TEXT, status TEXT DEFAULT 'active', wa_link TEXT, admin TEXT, cover_image TEXT, rules JSONB DEFAULT '[]', pic_name TEXT, pic_email TEXT, pic_phone TEXT, notes TEXT, submitted_at DATE, created_at TIMESTAMPTZ DEFAULT NOW())`;
   await db`CREATE TABLE IF NOT EXISTS community_members (id SERIAL PRIMARY KEY, community_id INTEGER REFERENCES communities(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, joined_at TIMESTAMPTZ DEFAULT NOW(), status TEXT DEFAULT 'active', UNIQUE(community_id, user_id))`;
   await db`CREATE TABLE IF NOT EXISTS organizers (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, email TEXT, phone TEXT, website TEXT, pic TEXT, status TEXT DEFAULT 'active', notes TEXT, submitted_at DATE)`;
+  await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS event_date DATE`;
+  await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS event_description TEXT`;
   await db`CREATE TABLE IF NOT EXISTS sponsors (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, email TEXT, phone TEXT, website TEXT, pic TEXT, status TEXT DEFAULT 'active', notes TEXT, submitted_at DATE)`;
+  await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS sub_type TEXT DEFAULT 'pengajuan'`;
+  await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS sponsorship_start DATE`;
+  await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS sponsorship_end DATE`;
+  await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS benefit TEXT`;
+  await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS event_description TEXT`;
   await db`CREATE TABLE IF NOT EXISTS events (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, category_id INTEGER REFERENCES event_categories(id), venue_id INTEGER REFERENCES venues(id), status TEXT DEFAULT 'Draft', start_date DATE, end_date DATE, start_time TIME, end_time TIME, quota INTEGER, price INTEGER DEFAULT 0, cover_image TEXT, community_id INTEGER REFERENCES communities(id), facilities JSONB DEFAULT '[]', rules JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT NOW())`;
   await db`CREATE TABLE IF NOT EXISTS event_organizers (event_id INTEGER REFERENCES events(id) ON DELETE CASCADE, organizer_id INTEGER REFERENCES organizers(id) ON DELETE CASCADE, PRIMARY KEY (event_id, organizer_id))`;
   await db`CREATE TABLE IF NOT EXISTS event_sponsors (event_id INTEGER REFERENCES events(id) ON DELETE CASCADE, sponsor_id INTEGER REFERENCES sponsors(id) ON DELETE CASCADE, PRIMARY KEY (event_id, sponsor_id))`;

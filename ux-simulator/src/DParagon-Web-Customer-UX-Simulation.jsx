@@ -2506,6 +2506,11 @@ function ClubsSection({ state, subPage, subParam, onNav, toast }) {
 // ═══════════════════════════════════════════════════════════════
 // SECTION: MY PASS
 // ═══════════════════════════════════════════════════════════════
+const SPONSOR_SUBTYPE_HINT = {
+  pengajuan: "Ajukan sponsorship untuk eventmu",
+  penawaran: "Jadilah bagian dari sponsor kami",
+};
+
 function CollaborateSection({ toast }) {
   const [type, setType] = useState("EO");
   const [form, setForm] = useState({
@@ -2514,25 +2519,63 @@ function CollaborateSection({ toast }) {
     email: "",
     noHp: "",
     kebutuhan: "",
+    eventDate: "",
+    eventDesc: "",
+    socialLink: "",
+    attachment: null,
+    subType: "pengajuan",
+    sponsorStart: "",
+    sponsorEnd: "",
+    benefit: "",
   });
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const isSponsorPengajuan = type === "Sponsor" && form.subType === "pengajuan";
 
   const submit = async () => {
     if (!form.nama.trim() || !form.email.includes("@") || !form.noHp.trim()) {
       toast("info", "Lengkapi nama, email, dan nomor HP terlebih dahulu.");
       return;
     }
+    if (type === "EO" && !form.eventDate) {
+      toast("info", "Isi tanggal event terlebih dahulu.");
+      return;
+    }
+    if (type === "Sponsor" && (!form.sponsorStart || !form.sponsorEnd)) {
+      toast("info", "Isi periode sponsorship terlebih dahulu.");
+      return;
+    }
     setSubmitting(true);
     try {
-      await apiCall(type === "EO" ? "/api/organizers" : "/api/sponsors", "POST", {
-        name: form.organisasi.trim() || form.nama.trim(),
-        description: form.kebutuhan,
-        email: form.email,
-        phone: form.noHp,
-        pic: form.nama,
-        submitted_at: new Date().toISOString().slice(0, 10),
-      });
+      if (type === "EO") {
+        await apiCall("/api/organizers", "POST", {
+          name: form.organisasi.trim() || form.nama.trim(),
+          description: form.kebutuhan,
+          email: form.email,
+          phone: form.noHp,
+          pic: form.nama,
+          website: form.socialLink,
+          event_date: form.eventDate || null,
+          event_description: form.eventDesc,
+          submitted_at: new Date().toISOString().slice(0, 10),
+        });
+      } else {
+        await apiCall("/api/sponsors", "POST", {
+          name: form.organisasi.trim() || form.nama.trim(),
+          description: isSponsorPengajuan ? form.kebutuhan : "",
+          email: form.email,
+          phone: form.noHp,
+          pic: form.nama,
+          website: form.socialLink,
+          sub_type: form.subType,
+          sponsorship_start: form.sponsorStart || null,
+          sponsorship_end: form.sponsorEnd || null,
+          benefit: form.benefit,
+          event_description: isSponsorPengajuan ? form.eventDesc : "",
+          submitted_at: new Date().toISOString().slice(0, 10),
+        });
+      }
       setSubmitted(true);
       toast("success", "Pengajuan kerja sama berhasil dikirim.");
     } catch (e) {
@@ -2562,7 +2605,7 @@ function CollaborateSection({ toast }) {
           },
           {
             title: "Sponsor / Brand",
-            desc: "Masuk sebagai sponsor event dengan exposure di event page, QR pass, dan recap article.",
+            desc: "Sponsor bisa jadi pihak yang mengajukan permintaan dukungan untuk eventmu, atau pihak yang menawarkan diri memberi dukungan sebagai sponsor D'Paragon.",
           },
         ].map((item) => (
           <div
@@ -2601,6 +2644,14 @@ function CollaborateSection({ toast }) {
                     email: "",
                     noHp: "",
                     kebutuhan: "",
+                    eventDate: "",
+                    eventDesc: "",
+                    socialLink: "",
+                    attachment: null,
+                    subType: "pengajuan",
+                    sponsorStart: "",
+                    sponsorEnd: "",
+                    benefit: "",
                   });
                 }}
                 className="mt-5 px-4 py-2 bg-blue-600 text-white text-sm rounded-xl hover:bg-blue-700"
@@ -2614,13 +2665,35 @@ function CollaborateSection({ toast }) {
                 {["EO", "Sponsor"].map((item) => (
                   <button
                     key={item}
-                    onClick={() => setType(item)}
+                    onClick={() => {
+                      setType(item);
+                      setForm((p) => ({ ...p, subType: "pengajuan" }));
+                    }}
                     className={`px-3 py-2 text-sm rounded-xl border ${type === item ? "bg-blue-600 text-white border-blue-600" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
                   >
                     {item}
                   </button>
                 ))}
               </div>
+
+              {type === "Sponsor" && (
+                <Field label="Tipe Pengajuan Sponsor *">
+                  <select
+                    value={form.subType}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, subType: e.target.value }))
+                    }
+                    className={inputCls}
+                  >
+                    <option value="pengajuan">Pengajuan</option>
+                    <option value="penawaran">Penawaran</option>
+                  </select>
+                  <p className="mt-1.5 text-xs text-blue-600">
+                    {SPONSOR_SUBTYPE_HINT[form.subType]}
+                  </p>
+                </Field>
+              )}
+
               <div className="grid md:grid-cols-2 gap-4">
                 <Field label="Nama PIC *">
                   <FInput
@@ -2662,17 +2735,122 @@ function CollaborateSection({ toast }) {
                   />
                 </Field>
               </div>
-              <Field label={`Kebutuhan ${type}`}>
-                <textarea
-                  value={form.kebutuhan}
+              {type === "EO" && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Field label="Tanggal Event Diadakan *">
+                    <FInput
+                      type="date"
+                      value={form.eventDate}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, eventDate: e.target.value }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Link Sosmed / Web">
+                    <FInput
+                      value={form.socialLink}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, socialLink: e.target.value }))
+                      }
+                      placeholder="instagram.com/namaevent (opsional)"
+                    />
+                  </Field>
+                </div>
+              )}
+
+              {type === "Sponsor" && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Field label="Periode Sponsorship Berlaku *">
+                    <div className="flex items-center gap-2">
+                      <FInput
+                        type="date"
+                        value={form.sponsorStart}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, sponsorStart: e.target.value }))
+                        }
+                      />
+                      <span className="text-xs text-gray-400 shrink-0">s/d</span>
+                      <FInput
+                        type="date"
+                        value={form.sponsorEnd}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, sponsorEnd: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </Field>
+                  <Field label="Link Sosmed">
+                    <FInput
+                      value={form.socialLink}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, socialLink: e.target.value }))
+                      }
+                      placeholder="instagram.com/brandkamu (opsional)"
+                    />
+                  </Field>
+                </div>
+              )}
+
+              {(type === "EO" || isSponsorPengajuan) && (
+                <Field label="Deskripsi Acara *">
+                  <textarea
+                    value={form.eventDesc}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, eventDesc: e.target.value }))
+                    }
+                    rows={3}
+                    placeholder="Ceritakan konsep dan gambaran acaranya."
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                </Field>
+              )}
+
+              {(type === "EO" || isSponsorPengajuan) && (
+                <Field label={`Kebutuhan ${type}`}>
+                  <textarea
+                    value={form.kebutuhan}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, kebutuhan: e.target.value }))
+                    }
+                    rows={4}
+                    placeholder="Ceritakan target peserta, kebutuhan venue, atau bentuk sponsor yang diinginkan."
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                </Field>
+              )}
+
+              {type === "Sponsor" && (
+                <Field label="Benefit">
+                  <textarea
+                    value={form.benefit}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, benefit: e.target.value }))
+                    }
+                    rows={3}
+                    placeholder="Benefit yang ditawarkan/diharapkan dari kerja sama ini (opsional)."
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                </Field>
+              )}
+
+              <Field label="Attachment File">
+                <input
+                  type="file"
                   onChange={(e) =>
-                    setForm((p) => ({ ...p, kebutuhan: e.target.value }))
+                    setForm((p) => ({
+                      ...p,
+                      attachment: e.target.files?.[0] || null,
+                    }))
                   }
-                  rows={4}
-                  placeholder="Ceritakan konsep, target peserta, kebutuhan venue, atau bentuk sponsor yang diinginkan."
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-600 file:text-xs file:font-medium"
                 />
+                {form.attachment && (
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    File dipilih: {form.attachment.name}
+                  </p>
+                )}
               </Field>
+
               <button
                 onClick={submit}
                 disabled={submitting}

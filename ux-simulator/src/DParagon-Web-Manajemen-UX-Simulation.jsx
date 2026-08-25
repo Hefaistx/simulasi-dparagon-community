@@ -81,12 +81,16 @@ const fromApiOrgLead = o => ({
   organisasi: o.name, pic: o.pic, email: o.email, noHp: o.phone,
   kebutuhan: o.description ?? '', status: o.status === 'pending' ? 'New' : o.status,
   tanggalAjuan: o.submitted_at,
+  eventDate: o.event_date ?? '', eventDesc: o.event_description ?? '', website: o.website ?? '',
 });
 const fromApiSponsorLead = s => ({
   id: s.id, _source: 'sponsor', tipe: 'Sponsor',
   organisasi: s.name, pic: s.pic, email: s.email, noHp: s.phone,
   kebutuhan: s.description ?? '', status: s.status === 'pending' ? 'New' : s.status,
   tanggalAjuan: s.submitted_at,
+  subTipe: s.sub_type === 'penawaran' ? 'Penawaran' : 'Pengajuan',
+  sponsorStart: s.sponsorship_start ?? '', sponsorEnd: s.sponsorship_end ?? '',
+  benefit: s.benefit ?? '', eventDesc: s.event_description ?? '', website: s.website ?? '',
 });
 const fromApiStory = s => ({
   id: s.id,
@@ -2519,6 +2523,7 @@ const STATUS_LEAD_COLORS = {
 
 function PartnershipLeadsPage({ state, toast, loadData }) {
   const [filterTipe, setFilterTipe] = useState('Semua');
+  const [detailLead, setDetailLead] = useState(null);
 
   const filtered = state.partnershipLeads.filter(l => filterTipe === 'Semua' || l.tipe === filterTipe);
   const newCount = state.partnershipLeads.filter(l => l.status === 'New').length;
@@ -2573,6 +2578,9 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${lead.tipe === 'EO' ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
                       {lead.tipe}
                     </span>
+                    {lead.tipe === 'Sponsor' && (
+                      <span className="block mt-1 text-xs text-gray-400">{lead.subTipe}</span>
+                    )}
                   </td>
                   <td className="px-4 py-4">
                     <div className="font-medium text-gray-900">{lead.organisasi}</div>
@@ -2592,16 +2600,23 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
                     </span>
                   </td>
                   <td className="px-4 py-4 text-center">
-                    {lead.status === 'New' ? (
+                    <div className="flex items-center justify-center gap-2">
                       <button
-                        onClick={() => handleMarkContacted(lead)}
-                        className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                        onClick={() => setDetailLead(lead)}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Lihat Detail"
                       >
-                        Tandai Dihubungi
+                        <Eye size={15} />
                       </button>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
-                    )}
+                      {lead.status === 'New' && (
+                        <button
+                          onClick={() => handleMarkContacted(lead)}
+                          className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          Tandai Dihubungi
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -2609,6 +2624,53 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
           </table>
         </div>
       )}
+
+      <Modal open={!!detailLead} title="Detail Pengajuan" onClose={() => setDetailLead(null)} size="lg">
+        {detailLead && (
+          <div className="space-y-4 text-sm">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${detailLead.tipe === 'EO' ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
+                {detailLead.tipe}
+              </span>
+              {detailLead.tipe === 'Sponsor' && (
+                <span className="text-xs text-gray-500">{detailLead.subTipe}</span>
+              )}
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <DetailRow label="Organisasi / Brand" value={detailLead.organisasi} />
+              <DetailRow label="PIC" value={detailLead.pic} />
+              <DetailRow label="Email" value={detailLead.email} />
+              <DetailRow label="No. HP" value={detailLead.noHp} />
+              {detailLead.tipe === 'EO' && (
+                <DetailRow label="Tanggal Event" value={detailLead.eventDate} />
+              )}
+              {detailLead.tipe === 'Sponsor' && (
+                <DetailRow label="Periode Sponsorship" value={detailLead.sponsorStart || detailLead.sponsorEnd ? `${detailLead.sponsorStart || '-'} s/d ${detailLead.sponsorEnd || '-'}` : '-'} />
+              )}
+              <DetailRow label="Link Sosmed / Web" value={detailLead.website} />
+              <DetailRow label="Tanggal Ajuan" value={detailLead.tanggalAjuan} />
+            </div>
+            {(detailLead.tipe === 'EO' || detailLead.subTipe === 'Pengajuan') && (
+              <DetailRow label="Deskripsi Acara" value={detailLead.eventDesc} block />
+            )}
+            {(detailLead.tipe === 'EO' || detailLead.subTipe === 'Pengajuan') && (
+              <DetailRow label={`Kebutuhan ${detailLead.tipe}`} value={detailLead.kebutuhan} block />
+            )}
+            {detailLead.tipe === 'Sponsor' && (
+              <DetailRow label="Benefit" value={detailLead.benefit} block />
+            )}
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+function DetailRow({ label, value, block }) {
+  return (
+    <div className={block ? 'col-span-2' : ''}>
+      <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">{label}</div>
+      <div className="text-gray-700 whitespace-pre-wrap">{value || '-'}</div>
     </div>
   );
 }
