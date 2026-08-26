@@ -32,6 +32,7 @@ export default async function handler(req, res) {
       eventOrganizers,
       eventSponsors,
       storyImages,
+      communityMembers,
     ] = await Promise.all([
       db`SELECT e.*,
            v.name AS venue_name, v.address AS venue_address, v.city AS venue_city,
@@ -94,6 +95,11 @@ export default async function handler(req, res) {
          JOIN sponsors s ON s.id = es.sponsor_id`,
 
       db`SELECT * FROM story_images ORDER BY story_id, "order"`,
+
+      db`SELECT cm.*, u.email AS user_email, u.name AS user_name
+         FROM community_members cm
+         LEFT JOIN users u ON u.id = cm.user_id
+         WHERE cm.status = 'active'`,
     ]);
 
     // Resolve banner titles and images
@@ -143,6 +149,7 @@ export default async function handler(req, res) {
       kategoriEvent,
       venue: venues,
       partisipan: participants,
+      communityMembers,
     });
   } catch (e) {
     console.error(e);

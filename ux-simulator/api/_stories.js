@@ -32,11 +32,11 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, status, images } = req.body;
+      const { title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, publish_end_date, submitter_email, submitter_phone, status, images } = req.body;
       if (!title) return res.status(400).json({ error: 'title is required' });
       const [story] = await db`
-        INSERT INTO stories (title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, status)
-        VALUES (${title}, ${type ?? 'general'}, ${event_id ?? null}, ${community_id ?? null}, ${category ?? null}, ${JSON.stringify(tags ?? [])}, ${cover_image ?? null}, ${content ?? null}, ${author ?? null}, ${published_at ?? null}, ${status ?? 'draft'})
+        INSERT INTO stories (title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, publish_end_date, submitter_email, submitter_phone, status)
+        VALUES (${title}, ${type ?? 'general'}, ${event_id ?? null}, ${community_id ?? null}, ${category ?? null}, ${JSON.stringify(tags ?? [])}, ${cover_image ?? null}, ${content ?? null}, ${author ?? null}, ${published_at ?? null}, ${publish_end_date ?? null}, ${submitter_email ?? null}, ${submitter_phone ?? null}, ${status ?? 'draft'})
         RETURNING *`;
       const savedImages = [];
       for (const [i, img] of (images ?? []).entries()) {
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PATCH' && id) {
-      const { title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, status, images } = req.body;
+      const { title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, publish_end_date, submitter_email, submitter_phone, status, images } = req.body;
       const [story] = await db`
         UPDATE stories SET
           title = COALESCE(${title ?? null}, title),
@@ -60,6 +60,9 @@ export default async function handler(req, res) {
           content = COALESCE(${content ?? null}, content),
           author = COALESCE(${author ?? null}, author),
           published_at = COALESCE(${published_at ?? null}, published_at),
+          publish_end_date = COALESCE(${publish_end_date ?? null}, publish_end_date),
+          submitter_email = COALESCE(${submitter_email ?? null}, submitter_email),
+          submitter_phone = COALESCE(${submitter_phone ?? null}, submitter_phone),
           status = COALESCE(${status ?? null}, status)
         WHERE id = ${Number(id)}
         RETURNING *`;

@@ -44,6 +44,7 @@ const EMPTY_STATE = {
   reviews: [],
   headBanners: [],
   kategoriKomunitas: [],
+  communityMembers: [],
 };
 
 // Mappers: API (English) → component state (Indonesian field names)
@@ -759,7 +760,68 @@ function HomeSection({ state, onNav }) {
   );
 }
 
-function StoriesSection({ state, subPage, subParam, onNav }) {
+const STORY_SUBMIT_CURRENT_USER = {
+  name: "Budi Santoso",
+  email: "budi@email.com",
+  phone: "081234567890",
+};
+
+function StoriesSection({ state, subPage, subParam, onNav, toast, loadData }) {
+  const [submitModal, setSubmitModal] = useState(false);
+  const [submitForm, setSubmitForm] = useState({
+    author: STORY_SUBMIT_CURRENT_USER.name,
+    judul: "",
+    attachment: null,
+  });
+  const [submitErrors, setSubmitErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitDone, setSubmitDone] = useState(false);
+
+  const myCommunityId = state.communityMembers?.find(
+    (m) => m.userEmail === STORY_SUBMIT_CURRENT_USER.email,
+  )?.communityId;
+  const isCommunityMember = !!myCommunityId;
+
+  const openSubmitModal = () => {
+    setSubmitForm({
+      author: STORY_SUBMIT_CURRENT_USER.name,
+      judul: "",
+      attachment: null,
+    });
+    setSubmitErrors({});
+    setSubmitDone(false);
+    setSubmitModal(true);
+  };
+
+  const handleSubmitStory = async () => {
+    const e = {};
+    if (!submitForm.author.trim()) e.author = "Author wajib diisi";
+    if (!submitForm.judul.trim()) e.judul = "Judul wajib diisi";
+    if (Object.keys(e).length) {
+      setSubmitErrors(e);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await apiCall("/api/stories", "POST", {
+        title: submitForm.judul.trim(),
+        author: submitForm.author.trim(),
+        type: myCommunityId ? "community" : "general",
+        community_id: myCommunityId ?? null,
+        status: "draft",
+        submitter_email: STORY_SUBMIT_CURRENT_USER.email,
+        submitter_phone: STORY_SUBMIT_CURRENT_USER.phone,
+      });
+      await loadData();
+      setSubmitDone(true);
+      toast("success", "Pengajuan story terkirim! Menunggu kurasi admin.");
+    } catch (err) {
+      toast("info", "Gagal mengirim pengajuan. Coba lagi.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (subPage === "detail") {
     const story = state.stories.find((s) => s.id === subParam);
     if (!story)
@@ -941,7 +1003,23 @@ function StoriesSection({ state, subPage, subParam, onNav }) {
           </p>
         </div>
       </div>
-      <h2 className="text-lg font-bold text-gray-900 mb-4">Artikel Terbaru</h2>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="text-lg font-bold text-gray-900">Artikel Terbaru</h2>
+        <div className="text-right">
+          <button
+            onClick={openSubmitModal}
+            disabled={!isCommunityMember}
+            className={`px-4 py-2 text-sm rounded-xl font-medium transition-colors ${isCommunityMember ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+          >
+            + Ajukan Story/Artikel
+          </button>
+          {!isCommunityMember && (
+            <p className="text-xs text-gray-400 mt-1 max-w-56">
+              Gabung ke salah satu komunitas dulu untuk bisa mengajukan story.
+            </p>
+          )}
+        </div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {publishedStories.map((story) => (
           <div
@@ -971,6 +1049,89 @@ function StoriesSection({ state, subPage, subParam, onNav }) {
           </div>
         ))}
       </div>
+
+      {/* Ajukan Story Modal */}
+      <Modal open={submitModal} onClose={() => setSubmitModal(false)} size="md">
+        {submitDone ? (
+          <div className="p-8 text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle size={32} className="text-green-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">
+              Pengajuan Terkirim!
+            </h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Tim D'Paragon akan mengurasi story kamu sebelum tayang.
+            </p>
+            <button
+              onClick={() => setSubmitModal(false)}
+              className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700"
+            >
+              Tutup
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900">Ajukan Story/Artikel</h3>
+              <button
+                onClick={() => setSubmitModal(false)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-500 bg-blue-50 rounded-xl p-3">
+                Punya cerita atau artikel seputar komunitasmu? Kirim naskahnya,
+                tim D'Paragon akan mengurasi sebelum ditayangkan.
+              </p>
+              <Field label="Author *" error={submitErrors.author}>
+                <FInput
+                  value={submitForm.author}
+                  onChange={(e) =>
+                    setSubmitForm((p) => ({ ...p, author: e.target.value }))
+                  }
+                  placeholder="Nama penulis"
+                />
+              </Field>
+              <Field label="Judul *" error={submitErrors.judul}>
+                <FInput
+                  value={submitForm.judul}
+                  onChange={(e) =>
+                    setSubmitForm((p) => ({ ...p, judul: e.target.value }))
+                  }
+                  placeholder="Judul story/artikel"
+                />
+              </Field>
+              <Field label="Attachment File">
+                <input
+                  type="file"
+                  onChange={(e) =>
+                    setSubmitForm((p) => ({
+                      ...p,
+                      attachment: e.target.files?.[0] || null,
+                    }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-600 file:text-xs file:font-medium"
+                />
+                {submitForm.attachment && (
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    File dipilih: {submitForm.attachment.name}
+                  </p>
+                )}
+              </Field>
+              <button
+                onClick={handleSubmitStory}
+                disabled={submitting}
+                className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+              >
+                {submitting ? "Mengirim..." : "Kirim Pengajuan"}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -2605,7 +2766,7 @@ function CollaborateSection({ toast }) {
           },
           {
             title: "Sponsor / Brand",
-            desc: "Sponsor bisa jadi pihak yang mengajukan permintaan dukungan untuk eventmu, atau pihak yang menawarkan diri memberi dukungan sebagai sponsor D'Paragon.",
+            desc: "Ajukan sponsorship untuk eventmu, atau jadi sponsor dan tawarkan dukunganmu ke D'Paragon Community.",
           },
         ].map((item) => (
           <div
@@ -3151,6 +3312,10 @@ export default function App() {
           headBanners: activeBanners.map(fromApiBanner),
           kategoriKomunitas: data.kategoriKomunitas.map(c => ({ id: c.id, nama: c.name })),
           myTickets,
+          communityMembers: (data.communityMembers || []).map(m => ({
+            communityId: m.community_id,
+            userEmail: m.user_email,
+          })),
         },
       });
     } catch (e) {

@@ -31,6 +31,9 @@ export async function createTables() {
   await db`CREATE TABLE IF NOT EXISTS event_agenda (id SERIAL PRIMARY KEY, event_id INTEGER REFERENCES events(id) ON DELETE CASCADE, time TIME, activity TEXT, "order" INTEGER DEFAULT 0)`;
   await db`CREATE TABLE IF NOT EXISTS participants (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id), name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT, event_id INTEGER REFERENCES events(id) ON DELETE CASCADE, payment_status TEXT DEFAULT 'Pending', checkin_status TEXT DEFAULT 'Belum', booked_at TIMESTAMPTZ DEFAULT NOW(), price INTEGER DEFAULT 0)`;
   await db`CREATE TABLE IF NOT EXISTS stories (id SERIAL PRIMARY KEY, title TEXT NOT NULL, type TEXT DEFAULT 'general', event_id INTEGER REFERENCES events(id), community_id INTEGER REFERENCES communities(id), category TEXT, tags JSONB DEFAULT '[]', cover_image TEXT, content TEXT, author TEXT, published_at DATE, status TEXT DEFAULT 'draft', created_at TIMESTAMPTZ DEFAULT NOW())`;
+  await db`ALTER TABLE stories ADD COLUMN IF NOT EXISTS publish_end_date DATE`;
+  await db`ALTER TABLE stories ADD COLUMN IF NOT EXISTS submitter_email TEXT`;
+  await db`ALTER TABLE stories ADD COLUMN IF NOT EXISTS submitter_phone TEXT`;
   await db`CREATE TABLE IF NOT EXISTS story_images (id SERIAL PRIMARY KEY, story_id INTEGER REFERENCES stories(id) ON DELETE CASCADE, image_url TEXT NOT NULL, "order" INTEGER DEFAULT 0)`;
   await db`CREATE TABLE IF NOT EXISTS reviews (id SERIAL PRIMARY KEY, event_id INTEGER REFERENCES events(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id), rating INTEGER CHECK (rating BETWEEN 1 AND 5), comment TEXT, status TEXT DEFAULT 'pending', submitted_at TIMESTAMPTZ DEFAULT NOW())`;
   await db`CREATE TABLE IF NOT EXISTS banners (id SERIAL PRIMARY KEY, type TEXT NOT NULL, info_id INTEGER NOT NULL, status TEXT DEFAULT 'active', "order" INTEGER DEFAULT 0)`;
@@ -81,6 +84,14 @@ export async function seed(db) {
       ON CONFLICT DO NOTHING`;
   }
   await db`SELECT setval('communities_id_seq', (SELECT MAX(id) FROM communities))`;
+
+  // community_members
+  for (const m of d.communityMembers ?? []) {
+    await db`INSERT INTO community_members (id, community_id, user_id, status) VALUES (${m.id}, ${m.community_id}, ${m.user_id}, ${m.status ?? 'active'}) ON CONFLICT DO NOTHING`;
+  }
+  if ((d.communityMembers ?? []).length > 0) {
+    await db`SELECT setval('community_members_id_seq', (SELECT MAX(id) FROM community_members))`;
+  }
 
   // organizers
   for (const o of d.organizers) {

@@ -104,6 +104,9 @@ const fromApiStory = s => ({
   konten: s.content ?? '',
   penulis: s.author ?? '',
   tanggalPublish: s.published_at,
+  tayangSelesai: s.publish_end_date ?? '',
+  submitterEmail: s.submitter_email ?? '',
+  submitterPhone: s.submitter_phone ?? '',
   status: s.status === 'published' ? 'Published' : 'Draft',
   images: s.images ?? [],
 });
@@ -152,7 +155,7 @@ const toApiEvent = f => ({
 });
 const toApiVenue = f => ({ name: f.nama, address: f.alamat, capacity: Number(f.kapasitas) || 0, city: f.kota, maps_link: f.mapsLink || null });
 const toApiKomunitas = f => ({ name: f.nama, description: f.deskripsi, category_id: f.kategoriId ? Number(f.kategoriId) : null, type: f.tipe, city: f.kota || null, status: f.status === 'Aktif' ? 'active' : f.status === 'Nonaktif' ? 'inactive' : 'active', wa_link: f.linkWA, admin: f.admin, cover_image: f.coverImage || '', rules: f.rules ?? [] });
-const toApiStory = f => ({ title: f.judul, type: f.tipeRelasi === 'Event' ? 'event' : f.tipeRelasi === 'Komunitas' ? 'community' : 'general', event_id: f.relatedEventId ? Number(f.relatedEventId) : null, community_id: f.relatedKomunitasId ? Number(f.relatedKomunitasId) : null, category: f.kategori, tags: f.tags ? f.tags.split(',').map(t => t.trim()).filter(Boolean) : [], cover_image: f.coverImage || '', content: f.konten, author: f.penulis, published_at: f.tanggalPublish || null, status: f.status === 'Published' ? 'published' : 'draft' });
+const toApiStory = f => ({ title: f.judul, type: f.tipeRelasi === 'Event' ? 'event' : f.tipeRelasi === 'Komunitas' ? 'community' : 'general', event_id: f.relatedEventId ? Number(f.relatedEventId) : null, community_id: f.relatedKomunitasId ? Number(f.relatedKomunitasId) : null, category: f.kategori, tags: f.tags ? f.tags.split(',').map(t => t.trim()).filter(Boolean) : [], cover_image: f.coverImage || '', content: f.konten, author: f.penulis, published_at: f.tanggalPublish || null, publish_end_date: f.tayangSelesai || null, status: f.status === 'Published' ? 'published' : 'draft' });
 const toApiBanner = f => ({ type: f.sumber === 'Event' ? 'event' : f.sumber === 'Artikel' ? 'story' : 'community', info_id: Number(f.relatedId), status: f.aktif ? 'active' : 'inactive', order: Number(f.urutan ?? 0) });
 
 async function apiCall(url, method = 'GET', body = null) {
@@ -1760,7 +1763,7 @@ const STORY_KATEGORI = ['Rekap Event', 'Komunitas', 'Lifestyle', 'Berita', 'Insp
 
 const EMPTY_STORY_FORM = {
   judul: '', tipeRelasi: 'Umum', relatedEventId: '', relatedKomunitasId: '',
-  kategori: 'Umum', tags: '', penulis: '', coverImage: '', konten: '', tanggalPublish: '', status: 'Draft',
+  kategori: 'Umum', tags: '', penulis: '', coverImage: '', konten: '', tanggalPublish: '', tayangSelesai: '', status: 'Draft',
 };
 
 function StoriesListPage({ state, dispatch, toast, loadData }) {
@@ -1814,6 +1817,7 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
       coverImage: story.coverImage || '',
       konten: story.konten || '',
       tanggalPublish: story.tanggalPublish || '',
+      tayangSelesai: story.tayangSelesai || '',
       status: story.status,
     });
     setFormErrors({});
@@ -1907,7 +1911,7 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tipe</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Relasi</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tanggal</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Periode Tayang</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -1915,7 +1919,12 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
               {filtered.map(story => (
                 <tr key={story.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900 max-w-xs truncate">{story.judul}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium text-gray-900 max-w-xs truncate">{story.judul}</div>
+                      {story.submitterEmail && (
+                        <span className="shrink-0 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">Dari Web</span>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-400 mt-0.5">{story.kategori}{story.tags ? ` · ${story.tags}` : ''}</div>
                   </td>
                   <td className="px-4 py-3">
@@ -1925,7 +1934,10 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-xs max-w-[160px] truncate">{getRelasiLabel(story)}</td>
                   <td className="px-4 py-3"><StatusBadge status={story.status} /></td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{story.tanggalPublish ? fmtDate(story.tanggalPublish) : '—'}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">
+                    {story.tanggalPublish ? fmtDate(story.tanggalPublish) : '—'}
+                    {story.tayangSelesai ? ` s/d ${fmtDate(story.tayangSelesai)}` : ''}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-end">
                       <button onClick={() => openEdit(story)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Edit2 size={14} /></button>
@@ -2015,16 +2027,27 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Tanggal Publish">
+            <Field label="Periode Tayang (Mulai)">
               <FInput type="date" value={form.tanggalPublish} onChange={e => setForm(f => ({ ...f, tanggalPublish: e.target.value }))} />
             </Field>
-            <Field label="Status">
-              <FSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                <option value="Draft">Draft</option>
-                <option value="Published">Published</option>
-              </FSelect>
+            <Field label="Periode Tayang (Selesai)">
+              <FInput type="date" value={form.tayangSelesai} onChange={e => setForm(f => ({ ...f, tayangSelesai: e.target.value }))} />
             </Field>
           </div>
+
+          <Field label="Status">
+            <FSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+              <option value="Draft">Draft</option>
+              <option value="Published">Published</option>
+            </FSelect>
+          </Field>
+
+          {formModal?.story && (formModal.story.submitterEmail || formModal.story.submitterPhone) && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Kontak Pengaju (via Ajukan Story)</p>
+              <p className="text-sm text-blue-700">{formModal.story.submitterEmail || '-'} · {formModal.story.submitterPhone || '-'}</p>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button onClick={closeModal} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>

@@ -41,6 +41,10 @@ export const SEED_DATA = {
     { id: 11, name: 'Rina Wahyuni', email: 'rina@email.com', phone: '081198765432', city: 'Jakarta' },
   ],
 
+  communityMembers: [
+    { id: 1, community_id: 1, user_id: 1, status: 'active' },
+  ],
+
   communities: [
     { id: 1, name: 'Lari Pagi Community', description: "Komunitas lari pagi setiap akhir pekan di kawasan D'Paragon. Terbuka untuk semua level.", category_id: 1, type: 'Internal', city: 'Jakarta', status: 'active', wa_link: 'https://chat.whatsapp.com/xxx1', admin: 'Bima Prakoso', cover_image: '', rules: ['Datang tepat waktu', 'Hormati pace peserta lain', 'Gunakan perlengkapan olahraga yang aman'] },
     { id: 2, name: "Futsal D'Paragon", description: "Komunitas futsal rutin setiap Sabtu sore. Terbuka untuk semua penghuni.", category_id: 1, type: 'Internal', city: 'Jakarta', status: 'active', wa_link: 'https://chat.whatsapp.com/xxx2', admin: 'Raka Wijaya', cover_image: '', rules: ['Fair play', 'Konfirmasi hadir sebelum main', 'Ikuti arahan koordinator lapangan'] },
