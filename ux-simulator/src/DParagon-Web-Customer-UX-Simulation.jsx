@@ -1022,20 +1022,20 @@ function StoriesSection({ state, subPage, subParam, onNav, toast, loadData }) {
               D'Paragon.
             </p>
           </div>
-          <div className="text-right shrink-0">
+          <div className="shrink-0">
             <button
-              onClick={openSubmitModal}
-              disabled={!isCommunityMember}
-              className={`px-4 py-2 text-sm rounded-xl font-medium transition-colors whitespace-nowrap ${isCommunityMember ? "bg-white text-blue-700 hover:bg-blue-50" : "bg-white/20 text-white/60 cursor-not-allowed"}`}
+              onClick={() =>
+                isCommunityMember
+                  ? openSubmitModal()
+                  : toast(
+                      "info",
+                      "Gabung ke salah satu komunitas dulu untuk bisa mengajukan story.",
+                    )
+              }
+              className="px-4 py-2 text-sm rounded-xl font-medium transition-colors whitespace-nowrap bg-white text-blue-700 hover:bg-blue-50"
             >
               + Ajukan Story/Artikel
             </button>
-            {!isCommunityMember && (
-              <p className="text-xs text-blue-100 mt-1.5 max-w-56">
-                Gabung ke salah satu komunitas dulu untuk bisa mengajukan
-                story.
-              </p>
-            )}
           </div>
         </div>
       </div>
