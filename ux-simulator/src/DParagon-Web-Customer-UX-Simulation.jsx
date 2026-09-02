@@ -771,7 +771,8 @@ function StoriesSection({ state, subPage, subParam, onNav, toast, loadData }) {
   const [submitForm, setSubmitForm] = useState({
     author: STORY_SUBMIT_CURRENT_USER.name,
     judul: "",
-    attachment: null,
+    konten: "",
+    coverImage: null,
   });
   const [submitErrors, setSubmitErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -786,17 +787,33 @@ function StoriesSection({ state, subPage, subParam, onNav, toast, loadData }) {
     setSubmitForm({
       author: STORY_SUBMIT_CURRENT_USER.name,
       judul: "",
-      attachment: null,
+      konten: "",
+      coverImage: null,
     });
     setSubmitErrors({});
     setSubmitDone(false);
     setSubmitModal(true);
   };
 
+  const handleCoverImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast("info", "Hanya file gambar yang diperbolehkan.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) =>
+      setSubmitForm((p) => ({ ...p, coverImage: ev.target.result }));
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmitStory = async () => {
     const e = {};
     if (!submitForm.author.trim()) e.author = "Author wajib diisi";
     if (!submitForm.judul.trim()) e.judul = "Judul wajib diisi";
+    if (!submitForm.konten.trim()) e.konten = "Isi artikel wajib diisi";
     if (Object.keys(e).length) {
       setSubmitErrors(e);
       return;
@@ -806,9 +823,11 @@ function StoriesSection({ state, subPage, subParam, onNav, toast, loadData }) {
       await apiCall("/api/stories", "POST", {
         title: submitForm.judul.trim(),
         author: submitForm.author.trim(),
+        content: submitForm.konten.trim(),
+        cover_image: submitForm.coverImage || null,
         type: myCommunityId ? "community" : "general",
         community_id: myCommunityId ?? null,
-        status: "draft",
+        status: "pending",
         submitter_email: STORY_SUBMIT_CURRENT_USER.email,
         submitter_phone: STORY_SUBMIT_CURRENT_USER.phone,
       });
@@ -990,35 +1009,38 @@ function StoriesSection({ state, subPage, subParam, onNav, toast, loadData }) {
     <div className="max-w-6xl mx-auto py-8 px-4">
       {/* Hero banner */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-7 mb-8 text-white">
-        <div className="max-w-lg">
-          <p className="text-blue-200 text-sm font-medium mb-2">
-            D'Paragon Stories
-          </p>
-          <h1 className="text-2xl md:text-3xl font-bold leading-tight mb-2">
-            Cerita & Inspirasi dari Komunitas
-          </h1>
-          <p className="text-blue-100 text-sm">
-            Rekap event, tips hidup aktif, dan kisah inspiratif penghuni
-            D'Paragon.
-          </p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="max-w-lg">
+            <p className="text-blue-200 text-sm font-medium mb-2">
+              D'Paragon Stories
+            </p>
+            <h1 className="text-2xl md:text-3xl font-bold leading-tight mb-2">
+              Cerita & Inspirasi dari Komunitas
+            </h1>
+            <p className="text-blue-100 text-sm">
+              Rekap event, tips hidup aktif, dan kisah inspiratif penghuni
+              D'Paragon.
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <button
+              onClick={openSubmitModal}
+              disabled={!isCommunityMember}
+              className={`px-4 py-2 text-sm rounded-xl font-medium transition-colors whitespace-nowrap ${isCommunityMember ? "bg-white text-blue-700 hover:bg-blue-50" : "bg-white/20 text-white/60 cursor-not-allowed"}`}
+            >
+              + Ajukan Story/Artikel
+            </button>
+            {!isCommunityMember && (
+              <p className="text-xs text-blue-100 mt-1.5 max-w-56">
+                Gabung ke salah satu komunitas dulu untuk bisa mengajukan
+                story.
+              </p>
+            )}
+          </div>
         </div>
       </div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-lg font-bold text-gray-900">Artikel Terbaru</h2>
-        <div className="text-right">
-          <button
-            onClick={openSubmitModal}
-            disabled={!isCommunityMember}
-            className={`px-4 py-2 text-sm rounded-xl font-medium transition-colors ${isCommunityMember ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
-          >
-            + Ajukan Story/Artikel
-          </button>
-          {!isCommunityMember && (
-            <p className="text-xs text-gray-400 mt-1 max-w-56">
-              Gabung ke salah satu komunitas dulu untuk bisa mengajukan story.
-            </p>
-          )}
-        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {publishedStories.map((story) => (
@@ -1104,21 +1126,30 @@ function StoriesSection({ state, subPage, subParam, onNav, toast, loadData }) {
                   placeholder="Judul story/artikel"
                 />
               </Field>
-              <Field label="Attachment File">
+              <Field label="Isi Artikel *" error={submitErrors.konten}>
+                <textarea
+                  value={submitForm.konten}
+                  onChange={(e) =>
+                    setSubmitForm((p) => ({ ...p, konten: e.target.value }))
+                  }
+                  rows={6}
+                  placeholder="Tulis cerita atau artikelmu di sini..."
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Cover Image (opsional)">
                 <input
                   type="file"
-                  onChange={(e) =>
-                    setSubmitForm((p) => ({
-                      ...p,
-                      attachment: e.target.files?.[0] || null,
-                    }))
-                  }
+                  accept="image/*"
+                  onChange={handleCoverImageChange}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-600 file:text-xs file:font-medium"
                 />
-                {submitForm.attachment && (
-                  <p className="mt-1.5 text-xs text-gray-400">
-                    File dipilih: {submitForm.attachment.name}
-                  </p>
+                {submitForm.coverImage && (
+                  <img
+                    src={submitForm.coverImage}
+                    alt="preview cover"
+                    className="mt-2 h-24 w-auto rounded-lg border border-gray-200 object-cover"
+                  />
                 )}
               </Field>
               <button

@@ -107,7 +107,7 @@ const fromApiStory = s => ({
   tayangSelesai: s.publish_end_date ?? '',
   submitterEmail: s.submitter_email ?? '',
   submitterPhone: s.submitter_phone ?? '',
-  status: s.status === 'published' ? 'Published' : 'Draft',
+  status: s.status === 'published' ? 'Published' : s.status === 'pending' ? 'Pending' : s.status === 'rejected' ? 'Rejected' : 'Draft',
   images: s.images ?? [],
 });
 const fromApiBanner = b => ({
@@ -155,7 +155,7 @@ const toApiEvent = f => ({
 });
 const toApiVenue = f => ({ name: f.nama, address: f.alamat, capacity: Number(f.kapasitas) || 0, city: f.kota, maps_link: f.mapsLink || null });
 const toApiKomunitas = f => ({ name: f.nama, description: f.deskripsi, category_id: f.kategoriId ? Number(f.kategoriId) : null, type: f.tipe, city: f.kota || null, status: f.status === 'Aktif' ? 'active' : f.status === 'Nonaktif' ? 'inactive' : 'active', wa_link: f.linkWA, admin: f.admin, cover_image: f.coverImage || '', rules: f.rules ?? [] });
-const toApiStory = f => ({ title: f.judul, type: f.tipeRelasi === 'Event' ? 'event' : f.tipeRelasi === 'Komunitas' ? 'community' : 'general', event_id: f.relatedEventId ? Number(f.relatedEventId) : null, community_id: f.relatedKomunitasId ? Number(f.relatedKomunitasId) : null, category: f.kategori, tags: f.tags ? f.tags.split(',').map(t => t.trim()).filter(Boolean) : [], cover_image: f.coverImage || '', content: f.konten, author: f.penulis, published_at: f.tanggalPublish || null, publish_end_date: f.tayangSelesai || null, status: f.status === 'Published' ? 'published' : 'draft' });
+const toApiStory = f => ({ title: f.judul, type: f.tipeRelasi === 'Event' ? 'event' : f.tipeRelasi === 'Komunitas' ? 'community' : 'general', event_id: f.relatedEventId ? Number(f.relatedEventId) : null, community_id: f.relatedKomunitasId ? Number(f.relatedKomunitasId) : null, category: f.kategori, tags: f.tags ? f.tags.split(',').map(t => t.trim()).filter(Boolean) : [], cover_image: f.coverImage || '', content: f.konten, author: f.penulis, published_at: f.tanggalPublish || null, publish_end_date: f.tayangSelesai || null, status: f.status === 'Published' ? 'published' : f.status === 'Pending' ? 'pending' : f.status === 'Rejected' ? 'rejected' : 'draft' });
 const toApiBanner = f => ({ type: f.sumber === 'Event' ? 'event' : f.sumber === 'Artikel' ? 'story' : 'community', info_id: Number(f.relatedId), status: f.aktif ? 'active' : 'inactive', order: Number(f.urutan ?? 0) });
 
 async function apiCall(url, method = 'GET', body = null) {
@@ -430,7 +430,7 @@ const NAV_STRUCTURE = [
   },
 ];
 
-function Sidebar({ currentPage, onNav, pendingPengajuan, pendingReviews, pendingLeads }) {
+function Sidebar({ currentPage, onNav, pendingPengajuan, pendingReviews, pendingLeads, pendingStories }) {
   const [collapsed, setCollapsed] = useState({});
   return (
     <div className="w-60 bg-gray-900 text-white flex flex-col h-screen fixed left-0 top-0 overflow-y-auto z-40">
@@ -470,6 +470,9 @@ function Sidebar({ currentPage, onNav, pendingPengajuan, pendingReviews, pending
                     )}
                     {key === 'partnership-leads' && pendingLeads > 0 && (
                       <span className="bg-yellow-400 text-yellow-900 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{pendingLeads}</span>
+                    )}
+                    {key === 'stories-list' && pendingStories > 0 && (
+                      <span className="bg-yellow-400 text-yellow-900 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{pendingStories}</span>
                     )}
                   </button>
                 ))}
@@ -1772,6 +1775,22 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
   const [form, setForm] = useState(EMPTY_STORY_FORM);
   const [formErrors, setFormErrors] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [actionModal, setActionModal] = useState(null); // { story, action: 'approve' | 'reject' }
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectReasonError, setRejectReasonError] = useState('');
+
+  const pendingCount = state.stories.filter(s => s.status === 'Pending').length;
+
+  const openAction = (story, action) => { setActionModal({ story, action }); setRejectReason(''); setRejectReasonError(''); };
+  const closeAction = () => { setActionModal(null); setRejectReason(''); setRejectReasonError(''); };
+
+  const handleAction = async () => {
+    if (actionModal.action === 'reject' && !rejectReason.trim()) { setRejectReasonError('Alasan penolakan wajib diisi'); return; }
+    const newStatus = actionModal.action === 'approve' ? 'published' : 'rejected';
+    await apiCall(`/api/stories?id=${actionModal.story.id}`, 'PATCH', { status: newStatus }); await loadData();
+    toast('success', actionModal.action === 'approve' ? 'Story disetujui dan dipublikasikan.' : 'Story ditolak.');
+    closeAction();
+  };
 
   // Prefill helpers — called explicitly from onChange handlers (no stale closure risk)
   const applyEventPrefill = (evId, currentForm) => {
@@ -1879,14 +1898,19 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
           <h1 className="text-xl font-bold text-gray-900">Manajemen Stories</h1>
           <p className="text-sm text-gray-500 mt-0.5">Kelola artikel, recap event, dan spotlight komunitas</p>
         </div>
-        <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
-          <Plus size={15} /> Tambah Story
-        </button>
+        <div className="flex items-center gap-3">
+          {pendingCount > 0 && (
+            <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm rounded-full font-medium">{pendingCount} menunggu review</span>
+          )}
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+            <Plus size={15} /> Tambah Story
+          </button>
+        </div>
       </div>
 
       {/* Filter status */}
       <div className="flex gap-2 mb-5 flex-wrap">
-        {['Semua', 'Published', 'Draft'].map(s => (
+        {['Semua', 'Pending', 'Published', 'Draft', 'Rejected'].map(s => (
           <button
             key={s}
             onClick={() => setFilterStatus(s)}
@@ -1940,6 +1964,12 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-end">
+                      {story.status === 'Pending' && (
+                        <>
+                          <button onClick={() => openAction(story, 'approve')} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg" title="Approve"><CheckCircle size={14} /></button>
+                          <button onClick={() => openAction(story, 'reject')} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Reject"><XCircle size={14} /></button>
+                        </>
+                      )}
                       <button onClick={() => openEdit(story)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Edit2 size={14} /></button>
                       <button onClick={() => setDeleteConfirm(story)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Hapus"><Trash2 size={14} /></button>
                     </div>
@@ -2038,7 +2068,9 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
           <Field label="Status">
             <FSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
               <option value="Draft">Draft</option>
+              <option value="Pending">Pending</option>
               <option value="Published">Published</option>
+              <option value="Rejected">Rejected</option>
             </FSelect>
           </Field>
 
@@ -2065,6 +2097,33 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirm(null)}
       />
+
+      {/* Approve / Reject Modal */}
+      <Modal
+        open={!!actionModal}
+        title={actionModal?.action === 'approve' ? 'Setujui Story' : 'Tolak Story'}
+        onClose={closeAction}
+      >
+        <div className="space-y-4">
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-sm font-medium text-gray-900">{actionModal?.story?.judul}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Penulis: {actionModal?.story?.penulis || '-'}</p>
+          </div>
+          {actionModal?.action === 'approve' ? (
+            <p className="text-sm text-gray-600">Story ini akan disetujui dan langsung berstatus Published.</p>
+          ) : (
+            <Field label="Alasan Penolakan *" error={rejectReasonError}>
+              <FTextarea value={rejectReason} onChange={e => { setRejectReason(e.target.value); setRejectReasonError(''); }} rows={3} placeholder="Contoh: Konten belum sesuai pedoman komunitas..." />
+            </Field>
+          )}
+          <div className="flex gap-3 pt-2">
+            <button onClick={closeAction} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
+            <button onClick={handleAction} className={`flex-1 text-white rounded-lg py-2 text-sm ${actionModal?.action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
+              {actionModal?.action === 'approve' ? 'Setujui' : 'Tolak'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -2757,6 +2816,7 @@ export default function App() {
   const pendingPengajuan = state.pengajuanKlub.filter(p => p.status === 'Pending').length;
   const pendingReviews = state.reviews.filter(r => r.status === 'Pending').length;
   const pendingLeads = state.partnershipLeads.filter(l => l.status === 'New').length;
+  const pendingStories = state.stories.filter(s => s.status === 'Pending').length;
 
 
   const pageMap = {
@@ -2782,7 +2842,7 @@ export default function App() {
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-gray-200 border-t-blue-600"></div>
         </div>
       )}
-      <Sidebar currentPage={currentPage} onNav={handleNav} pendingPengajuan={pendingPengajuan} pendingReviews={pendingReviews} pendingLeads={pendingLeads} />
+      <Sidebar currentPage={currentPage} onNav={handleNav} pendingPengajuan={pendingPengajuan} pendingReviews={pendingReviews} pendingLeads={pendingLeads} pendingStories={pendingStories} />
       <main className="ml-60 flex-1 p-7 min-h-screen">
         <div className="max-w-5xl">
           {pageMap[currentPage] ?? <EmptyState title="Halaman tidak ditemukan" desc="Pilih menu di sidebar" />}
