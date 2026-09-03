@@ -5,6 +5,65 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Layers, FileText, BarChart2, Eye, ArrowLeft,
   GripVertical, Image, ToggleLeft, ToggleRight, Star, Handshake
 } from 'lucide-react';
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/style.css';
+
+// ═══════════════════════════════════════════════════════════════
+// DATE RANGE PICKER (shared)
+// ═══════════════════════════════════════════════════════════════
+const fmtISO = (d) => {
+  if (!d) return '';
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+const parseISO = (s) => {
+  if (!s) return undefined;
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+function DateRangeField({ startValue, endValue, onChange, placeholder = 'Pilih rentang tanggal' }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+  const range = { from: parseISO(startValue), to: parseISO(endValue) };
+  const label = range.from
+    ? `${fmtDate(startValue)}${range.to ? ` – ${fmtDate(endValue)}` : ''}`
+    : placeholder;
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(p => !p)}
+        className="w-full flex items-center justify-between border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-left hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <span className={range.from ? 'text-gray-900' : 'text-gray-400'}>{label}</span>
+        <Calendar size={14} className="text-gray-400 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-2">
+          <DayPicker
+            mode="range"
+            selected={range}
+            onSelect={(r) => onChange(fmtISO(r?.from), fmtISO(r?.to))}
+            numberOfMonths={1}
+          />
+          {(range.from || range.to) && (
+            <button
+              type="button"
+              onClick={() => { onChange('', ''); }}
+              className="w-full text-xs text-blue-600 hover:underline pb-1.5"
+            >Reset tanggal</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════
 // EMPTY STATE + API MAPPERS
@@ -1346,11 +1405,8 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
                   {state.kategoriEvent.map(k => <option key={k.id} value={String(k.id)}>{k.nama}</option>)}
                 </FSelect>
               </Field>
-              <Field label="Tanggal Event Dari">
-                <FInput type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-              </Field>
-              <Field label="Tanggal Event Sampai">
-                <FInput type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+              <Field label="Rentang Tanggal Event">
+                <DateRangeField startValue={dateFrom} endValue={dateTo} onChange={(s, e) => { setDateFrom(s); setDateTo(e); }} />
               </Field>
             </div>
             {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">Reset filter</button>}
@@ -2247,14 +2303,13 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
             <FTextarea value={form.konten} onChange={e => setForm(f => ({ ...f, konten: e.target.value }))} rows={6} placeholder="Tulis isi artikel di sini..." />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Periode Tayang (Mulai)">
-              <FInput type="date" value={form.tanggalPublish} onChange={e => setForm(f => ({ ...f, tanggalPublish: e.target.value }))} />
-            </Field>
-            <Field label="Periode Tayang (Selesai)">
-              <FInput type="date" value={form.tayangSelesai} onChange={e => setForm(f => ({ ...f, tayangSelesai: e.target.value }))} />
-            </Field>
-          </div>
+          <Field label="Periode Tayang">
+            <DateRangeField
+              startValue={form.tanggalPublish}
+              endValue={form.tayangSelesai}
+              onChange={(start, end) => setForm(f => ({ ...f, tanggalPublish: start, tayangSelesai: end }))}
+            />
+          </Field>
 
           <Field label="Status">
             <FSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
@@ -2895,11 +2950,8 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
               <Field label="Cari PIC">
                 <FInput value={searchPic} onChange={e => setSearchPic(e.target.value)} placeholder="Nama PIC..." />
               </Field>
-              <Field label="Tanggal Ajuan Dari">
-                <FInput type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-              </Field>
-              <Field label="Tanggal Ajuan Sampai">
-                <FInput type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+              <Field label="Rentang Tanggal Ajuan">
+                <DateRangeField startValue={dateFrom} endValue={dateTo} onChange={(s, e) => { setDateFrom(s); setDateTo(e); }} />
               </Field>
             </div>
             {activeFilterCount > 0 && (

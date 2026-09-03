@@ -18,6 +18,8 @@ import {
   QrCode,
   Menu,
 } from "lucide-react";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/style.css";
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -174,6 +176,66 @@ const fmtShortDate = (d) =>
     month: "short",
     year: "numeric",
   });
+
+const fmtISO = (d) => {
+  if (!d) return "";
+  const y = d.getFullYear(),
+    m = String(d.getMonth() + 1).padStart(2, "0"),
+    day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+const parseISO = (s) => {
+  if (!s) return undefined;
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+function DateRangeField({ startValue, endValue, onChange, placeholder = "Pilih rentang tanggal" }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+  const range = { from: parseISO(startValue), to: parseISO(endValue) };
+  const label = range.from
+    ? `${fmtShortDate(startValue)}${range.to ? ` – ${fmtShortDate(endValue)}` : ""}`
+    : placeholder;
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((p) => !p)}
+        className={`${inputCls} flex items-center justify-between text-left`}
+      >
+        <span className={range.from ? "text-gray-900" : "text-gray-400"}>{label}</span>
+        <Calendar size={14} className="text-gray-400 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-2">
+          <DayPicker
+            mode="range"
+            selected={range}
+            onSelect={(r) => onChange(fmtISO(r?.from), fmtISO(r?.to))}
+            numberOfMonths={1}
+          />
+          {(range.from || range.to) && (
+            <button
+              type="button"
+              onClick={() => onChange("", "")}
+              className="w-full text-xs text-blue-600 hover:underline pb-1.5"
+            >
+              Reset tanggal
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════
 // UI COMPONENTS
@@ -2957,25 +3019,13 @@ function CollaborateSection({ toast }) {
               {type === "EO" && (
                 <>
                   <Field label="Tanggal Event Diadakan *">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <FInput
-                        type="date"
-                        className="flex-1 min-w-0"
-                        value={form.eventDate}
-                        onChange={(e) =>
-                          setForm((p) => ({ ...p, eventDate: e.target.value }))
-                        }
-                      />
-                      <span className="text-xs text-gray-400 shrink-0">s/d</span>
-                      <FInput
-                        type="date"
-                        className="flex-1 min-w-0"
-                        value={form.eventDateEnd}
-                        onChange={(e) =>
-                          setForm((p) => ({ ...p, eventDateEnd: e.target.value }))
-                        }
-                      />
-                    </div>
+                    <DateRangeField
+                      startValue={form.eventDate}
+                      endValue={form.eventDateEnd}
+                      onChange={(start, end) =>
+                        setForm((p) => ({ ...p, eventDate: start, eventDateEnd: end }))
+                      }
+                    />
                   </Field>
                   <Field label="Link Sosmed / Web">
                     <FInput
@@ -2992,25 +3042,13 @@ function CollaborateSection({ toast }) {
               {type === "Sponsor" && (
                 <>
                   <Field label="Periode Sponsorship Berlaku *">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <FInput
-                        type="date"
-                        className="flex-1 min-w-0"
-                        value={form.sponsorStart}
-                        onChange={(e) =>
-                          setForm((p) => ({ ...p, sponsorStart: e.target.value }))
-                        }
-                      />
-                      <span className="text-xs text-gray-400 shrink-0">s/d</span>
-                      <FInput
-                        type="date"
-                        className="flex-1 min-w-0"
-                        value={form.sponsorEnd}
-                        onChange={(e) =>
-                          setForm((p) => ({ ...p, sponsorEnd: e.target.value }))
-                        }
-                      />
-                    </div>
+                    <DateRangeField
+                      startValue={form.sponsorStart}
+                      endValue={form.sponsorEnd}
+                      onChange={(start, end) =>
+                        setForm((p) => ({ ...p, sponsorStart: start, sponsorEnd: end }))
+                      }
+                    />
                   </Field>
                   <Field label="Link Sosmed">
                     <FInput
