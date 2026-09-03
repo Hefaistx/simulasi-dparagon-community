@@ -531,8 +531,8 @@ function KategoriKomunitasPage({ state, dispatch, toast, loadData }) {
       {state.kategoriKomunitas.length === 0 ? (
         <EmptyState title="Belum ada kategori" desc="Tambahkan kategori komunitas pertama" action={<button onClick={openAdd} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg">Tambah</button>} />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full min-w-[860px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Nama</th>
@@ -612,8 +612,8 @@ function KategoriEventPage({ state, dispatch, toast, loadData }) {
       {state.kategoriEvent.length === 0 ? (
         <EmptyState title="Belum ada kategori event" desc="Tambahkan kategori event pertama" />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full min-w-[860px]">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Nama</th>
@@ -673,6 +673,16 @@ function VenuePage({ state, dispatch, toast, loadData }) {
   const [errors, setErrors] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filterKota, setFilterKota] = useState('Semua');
+
+  const activeFilterCount = [search.trim() !== '', filterKota !== 'Semua'].filter(Boolean).length;
+  const resetFilters = () => { setSearch(''); setFilterKota('Semua'); };
+  const filteredVenue = state.venue.filter(v =>
+    (search.trim() === '' || v.nama.toLowerCase().includes(search.trim().toLowerCase())) &&
+    (filterKota === 'Semua' || v.kota === filterKota)
+  );
 
   const openAdd = () => { setForm(blank); setErrors({}); setModal({ mode: 'add' }); };
   const openEdit = (v) => { setForm({ nama: v.nama, alamat: v.alamat, kapasitas: String(v.kapasitas), kota: v.kota || '', mapsLink: v.mapsLink || '' }); setErrors({}); setModal({ mode: 'edit', data: v }); };
@@ -753,11 +763,38 @@ function VenuePage({ state, dispatch, toast, loadData }) {
         </div>
         <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Plus size={16} /> Tambah Venue</button>
       </div>
-      {state.venue.length === 0 ? (
-        <EmptyState title="Belum ada venue" desc="Tambahkan venue pertama" />
+
+      <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+        <button onClick={() => setFilterOpen(p => !p)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <span className="flex items-center gap-2">
+            Filter Lanjutan
+            {activeFilterCount > 0 && <span className="bg-blue-100 text-blue-700 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{activeFilterCount}</span>}
+          </span>
+          <ChevronDown size={15} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {filterOpen && (
+          <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+            <div className="grid md:grid-cols-2 gap-3">
+              <Field label="Cari Nama Venue">
+                <FInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Nama venue..." />
+              </Field>
+              <Field label="Kota">
+                <FSelect value={filterKota} onChange={e => setFilterKota(e.target.value)}>
+                  <option value="Semua">Semua Kota</option>
+                  {KOTA_LIST.map(k => <option key={k} value={k}>{k}</option>)}
+                </FSelect>
+              </Field>
+            </div>
+            {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">Reset filter</button>}
+          </div>
+        )}
+      </div>
+
+      {filteredVenue.length === 0 ? (
+        <EmptyState title="Tidak ada venue" desc={activeFilterCount > 0 ? 'Tidak ada venue yang cocok dengan filter.' : 'Tambahkan venue pertama'} />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full min-w-[860px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Nama Venue</th>
@@ -768,7 +805,7 @@ function VenuePage({ state, dispatch, toast, loadData }) {
               </tr>
             </thead>
             <tbody>
-              {state.venue.map(v => (
+              {filteredVenue.map(v => (
                 <tr key={v.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-5 py-3 font-medium text-gray-900 text-sm">{v.nama}</td>
                   <td className="px-5 py-3 text-gray-500 text-sm max-w-xs truncate">{v.alamat}</td>
@@ -832,8 +869,21 @@ function KomunitasPage({ state, dispatch, toast, loadData }) {
   const [errors, setErrors] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [search, setSearch] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterKota, setFilterKota] = useState('Semua');
+  const [filterKategori, setFilterKategori] = useState('Semua');
+  const [filterTipe, setFilterTipe] = useState('Semua');
+  const [filterStatus, setFilterStatus] = useState('Semua');
 
-  const filtered = state.komunitas.filter(k => k.nama.toLowerCase().includes(search.toLowerCase()));
+  const activeFilterCount = [search.trim() !== '', filterKota !== 'Semua', filterKategori !== 'Semua', filterTipe !== 'Semua', filterStatus !== 'Semua'].filter(Boolean).length;
+  const resetFilters = () => { setSearch(''); setFilterKota('Semua'); setFilterKategori('Semua'); setFilterTipe('Semua'); setFilterStatus('Semua'); };
+  const filtered = state.komunitas.filter(k =>
+    (search.trim() === '' || k.nama.toLowerCase().includes(search.trim().toLowerCase())) &&
+    (filterKota === 'Semua' || k.kota === filterKota) &&
+    (filterKategori === 'Semua' || String(k.kategoriId) === filterKategori) &&
+    (filterTipe === 'Semua' || k.tipe === filterTipe) &&
+    (filterStatus === 'Semua' || k.status === filterStatus)
+  );
   const getKat = (id) => state.kategoriKomunitas.find(k => k.id === Number(id));
 
   const openAdd = () => { setForm(blankForm()); setErrors({}); setModal({ mode: 'add' }); };
@@ -874,15 +924,56 @@ function KomunitasPage({ state, dispatch, toast, loadData }) {
         </div>
         <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Plus size={16} /> Tambah Komunitas</button>
       </div>
-      <div className="relative mb-4">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari komunitas..." className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+        <button onClick={() => setFilterOpen(p => !p)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <span className="flex items-center gap-2">
+            Filter Lanjutan
+            {activeFilterCount > 0 && <span className="bg-blue-100 text-blue-700 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{activeFilterCount}</span>}
+          </span>
+          <ChevronDown size={15} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {filterOpen && (
+          <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+            <div className="grid md:grid-cols-2 gap-3">
+              <Field label="Cari Komunitas">
+                <FInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Nama komunitas..." />
+              </Field>
+              <Field label="Kota">
+                <FSelect value={filterKota} onChange={e => setFilterKota(e.target.value)}>
+                  <option value="Semua">Semua Kota</option>
+                  {KOTA_LIST.map(k => <option key={k} value={k}>{k}</option>)}
+                </FSelect>
+              </Field>
+              <Field label="Kategori">
+                <FSelect value={filterKategori} onChange={e => setFilterKategori(e.target.value)}>
+                  <option value="Semua">Semua Kategori</option>
+                  {state.kategoriKomunitas.map(k => <option key={k.id} value={String(k.id)}>{k.nama}</option>)}
+                </FSelect>
+              </Field>
+              <Field label="Tipe">
+                <FSelect value={filterTipe} onChange={e => setFilterTipe(e.target.value)}>
+                  <option value="Semua">Semua Tipe</option>
+                  <option value="Internal">Internal</option>
+                  <option value="Eksternal">Eksternal</option>
+                </FSelect>
+              </Field>
+              <Field label="Status">
+                <FSelect value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                  <option value="Semua">Semua Status</option>
+                  <option value="Aktif">Aktif</option>
+                  <option value="Nonaktif">Nonaktif</option>
+                </FSelect>
+              </Field>
+            </div>
+            {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">Reset filter</button>}
+          </div>
+        )}
       </div>
       {filtered.length === 0 ? (
-        <EmptyState title="Tidak ada komunitas" desc={search ? 'Coba kata kunci lain' : 'Tambahkan komunitas pertama'} />
+        <EmptyState title="Tidak ada komunitas" desc={activeFilterCount > 0 ? 'Tidak ada komunitas yang cocok dengan filter.' : 'Tambahkan komunitas pertama'} />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full min-w-[860px]">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Komunitas</th>
@@ -1035,10 +1126,23 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
   const [statusAction, setStatusAction] = useState(null);
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [detail, setDetail] = useState(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filterKategoriEvent, setFilterKategoriEvent] = useState('Semua');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const getKatEvent = (id) => state.kategoriEvent.find(k => k.id === Number(id));
   const getVenue = (id) => state.venue.find(v => v.id === Number(id));
-  const filtered = state.events.filter(e => filterStatus === 'Semua' || e.status === filterStatus);
+  const activeFilterCount = [search.trim() !== '', filterKategoriEvent !== 'Semua', dateFrom !== '', dateTo !== ''].filter(Boolean).length;
+  const resetFilters = () => { setSearch(''); setFilterKategoriEvent('Semua'); setDateFrom(''); setDateTo(''); };
+  const filtered = state.events.filter(e =>
+    (filterStatus === 'Semua' || e.status === filterStatus) &&
+    (search.trim() === '' || e.nama.toLowerCase().includes(search.trim().toLowerCase())) &&
+    (filterKategoriEvent === 'Semua' || String(e.kategoriEventId) === filterKategoriEvent) &&
+    (dateFrom === '' || e.tanggalMulai >= dateFrom) &&
+    (dateTo === '' || e.tanggalMulai <= dateTo)
+  );
 
   const openAdd = () => { setForm(blankForm()); setErrors({}); setModal({ mode: 'add' }); };
   const openEdit = (item) => {
@@ -1222,11 +1326,43 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
         ))}
       </div>
 
+      <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+        <button onClick={() => setFilterOpen(p => !p)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <span className="flex items-center gap-2">
+            Filter Lanjutan
+            {activeFilterCount > 0 && <span className="bg-blue-100 text-blue-700 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{activeFilterCount}</span>}
+          </span>
+          <ChevronDown size={15} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {filterOpen && (
+          <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+            <div className="grid md:grid-cols-2 gap-3">
+              <Field label="Cari Nama Event">
+                <FInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Nama event..." />
+              </Field>
+              <Field label="Kategori">
+                <FSelect value={filterKategoriEvent} onChange={e => setFilterKategoriEvent(e.target.value)}>
+                  <option value="Semua">Semua Kategori</option>
+                  {state.kategoriEvent.map(k => <option key={k.id} value={String(k.id)}>{k.nama}</option>)}
+                </FSelect>
+              </Field>
+              <Field label="Tanggal Event Dari">
+                <FInput type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+              </Field>
+              <Field label="Tanggal Event Sampai">
+                <FInput type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+              </Field>
+            </div>
+            {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">Reset filter</button>}
+          </div>
+        )}
+      </div>
+
       {filtered.length === 0 ? (
-        <EmptyState title="Tidak ada event" desc={filterStatus !== 'Semua' ? `Tidak ada event dengan status ${filterStatus}` : 'Buat event pertama'} />
+        <EmptyState title="Tidak ada event" desc={filterStatus !== 'Semua' || activeFilterCount > 0 ? 'Tidak ada event yang cocok dengan filter.' : 'Buat event pertama'} />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full min-w-[860px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Nama Event</th>
@@ -1459,8 +1595,8 @@ function PartisipanEventPage({ state, initialEventId }) {
           {filtered.length === 0 ? (
             <EmptyState title="Tidak ada partisipan" desc={search ? 'Coba kata kunci lain' : 'Belum ada yang mendaftar untuk event ini'} />
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <table className="w-full">
+            <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+              <table className="w-full min-w-[700px]">
                 <thead className="bg-gray-50 border-b">
                   <tr>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">#</th>
@@ -1497,8 +1633,21 @@ function PartisipanEventPage({ state, initialEventId }) {
 // ═══════════════════════════════════════════════════════════════
 function ListKlubPage({ state }) {
   const [search, setSearch] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterKota, setFilterKota] = useState('Semua');
+  const [filterKategori, setFilterKategori] = useState('Semua');
+  const [filterTipe, setFilterTipe] = useState('Semua');
+  const [filterStatus, setFilterStatus] = useState('Semua');
   const getKat = (id) => state.kategoriKomunitas.find(k => k.id === Number(id));
-  const filtered = state.komunitas.filter(k => k.nama.toLowerCase().includes(search.toLowerCase()));
+  const activeFilterCount = [search.trim() !== '', filterKota !== 'Semua', filterKategori !== 'Semua', filterTipe !== 'Semua', filterStatus !== 'Semua'].filter(Boolean).length;
+  const resetFilters = () => { setSearch(''); setFilterKota('Semua'); setFilterKategori('Semua'); setFilterTipe('Semua'); setFilterStatus('Semua'); };
+  const filtered = state.komunitas.filter(k =>
+    (search.trim() === '' || k.nama.toLowerCase().includes(search.trim().toLowerCase())) &&
+    (filterKota === 'Semua' || k.kota === filterKota) &&
+    (filterKategori === 'Semua' || String(k.kategoriId) === filterKategori) &&
+    (filterTipe === 'Semua' || k.tipe === filterTipe) &&
+    (filterStatus === 'Semua' || k.status === filterStatus)
+  );
   const totalMember = state.komunitas.reduce((a, k) => a + k.jumlahMember, 0);
 
   return (
@@ -1519,15 +1668,56 @@ function ListKlubPage({ state }) {
           </div>
         ))}
       </div>
-      <div className="relative mb-4">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari klub..." className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+        <button onClick={() => setFilterOpen(p => !p)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <span className="flex items-center gap-2">
+            Filter Lanjutan
+            {activeFilterCount > 0 && <span className="bg-blue-100 text-blue-700 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{activeFilterCount}</span>}
+          </span>
+          <ChevronDown size={15} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {filterOpen && (
+          <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+            <div className="grid md:grid-cols-2 gap-3">
+              <Field label="Cari Komunitas">
+                <FInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Nama komunitas..." />
+              </Field>
+              <Field label="Kota">
+                <FSelect value={filterKota} onChange={e => setFilterKota(e.target.value)}>
+                  <option value="Semua">Semua Kota</option>
+                  {KOTA_LIST.map(k => <option key={k} value={k}>{k}</option>)}
+                </FSelect>
+              </Field>
+              <Field label="Kategori">
+                <FSelect value={filterKategori} onChange={e => setFilterKategori(e.target.value)}>
+                  <option value="Semua">Semua Kategori</option>
+                  {state.kategoriKomunitas.map(k => <option key={k.id} value={String(k.id)}>{k.nama}</option>)}
+                </FSelect>
+              </Field>
+              <Field label="Tipe">
+                <FSelect value={filterTipe} onChange={e => setFilterTipe(e.target.value)}>
+                  <option value="Semua">Semua Tipe</option>
+                  <option value="Internal">Internal</option>
+                  <option value="Eksternal">Eksternal</option>
+                </FSelect>
+              </Field>
+              <Field label="Status">
+                <FSelect value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                  <option value="Semua">Semua Status</option>
+                  <option value="Aktif">Aktif</option>
+                  <option value="Nonaktif">Nonaktif</option>
+                </FSelect>
+              </Field>
+            </div>
+            {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">Reset filter</button>}
+          </div>
+        )}
       </div>
       {filtered.length === 0 ? (
-        <EmptyState title="Tidak ada klub" desc="Coba kata kunci lain" />
+        <EmptyState title="Tidak ada klub" desc={activeFilterCount > 0 ? 'Tidak ada klub yang cocok dengan filter.' : 'Belum ada klub terdaftar'} />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full min-w-[860px]">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Komunitas</th>
@@ -1695,8 +1885,8 @@ function PengajuanKlubPage({ state, dispatch, toast, loadData }) {
       {filtered.length === 0 ? (
         <EmptyState title="Tidak ada pengajuan" desc={filterStatus !== 'Semua' ? `Tidak ada pengajuan dengan status ${filterStatus}` : 'Belum ada pengajuan masuk'} />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full min-w-[860px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Nama Klub</th>
@@ -1931,8 +2121,8 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
           action={<button onClick={openAdd} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Tambah Story</button>}
         />
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full text-sm min-w-[900px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Judul</th>
@@ -2494,8 +2684,8 @@ function ReviewVerificationPage({ state, dispatch, toast, loadData }) {
       {filtered.length === 0 ? (
         <EmptyState title="Tidak ada review" desc={filterStatus === 'Semua' ? 'Belum ada review dari peserta.' : `Tidak ada review dengan status ${filterStatus}.`} />
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
+          <table className="w-full text-sm min-w-[820px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Peserta</th>
@@ -2601,7 +2791,7 @@ const STATUS_LEAD_COLORS = {
 };
 
 function PartnershipLeadsPage({ state, toast, loadData }) {
-  const [filterTipe, setFilterTipe] = useState('Semua');
+  const [filterTipe, setFilterTipe] = useState('EO');
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [searchOrganisasi, setSearchOrganisasi] = useState('');
@@ -2626,7 +2816,7 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
   };
 
   const filtered = state.partnershipLeads.filter(l =>
-    (filterTipe === 'Semua' || l.tipe === filterTipe) &&
+    l.tipe === filterTipe &&
     (filterStatus === 'Semua' || l.status === filterStatus) &&
     (searchOrganisasi.trim() === '' || l.organisasi?.toLowerCase().includes(searchOrganisasi.trim().toLowerCase())) &&
     (searchPic.trim() === '' || l.pic?.toLowerCase().includes(searchPic.trim().toLowerCase())) &&
@@ -2666,7 +2856,7 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
       </div>
 
       <div className="flex gap-2 mb-3 flex-wrap">
-        {['Semua', 'EO', 'Sponsor'].map(t => (
+        {['EO', 'Sponsor'].map(t => (
           <button
             key={t}
             onClick={() => setFilterTipe(t)}
@@ -2722,11 +2912,14 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
       {filtered.length === 0 ? (
         <EmptyState title="Belum ada pengajuan" desc="Pengajuan EO/Sponsor dari web customer akan muncul di sini." />
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
+          <table className="w-full text-sm min-w-[980px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipe</th>
+                {filterTipe === 'Sponsor' && (
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipe Pengajuan</th>
+                )}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Organisasi</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">PIC</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
@@ -2744,10 +2937,10 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${lead.tipe === 'EO' ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
                       {lead.tipe}
                     </span>
-                    {lead.tipe === 'Sponsor' && (
-                      <span className="block mt-1 text-xs text-gray-400">{lead.subTipe}</span>
-                    )}
                   </td>
+                  {filterTipe === 'Sponsor' && (
+                    <td className="px-4 py-4 text-gray-600">{lead.subTipe}</td>
+                  )}
                   <td className="px-4 py-4 font-medium text-gray-900">{lead.organisasi}</td>
                   <td className="px-4 py-4 text-gray-600">{lead.pic || '-'}</td>
                   <td className="px-4 py-4 text-gray-600">{lead.email}</td>
