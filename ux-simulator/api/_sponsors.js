@@ -25,17 +25,17 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, description, email, phone, website, pic, notes, submitted_at, sub_type, sponsorship_start, sponsorship_end, benefit, event_description } = req.body;
+      const { name, description, email, phone, website, pic, notes, submitted_at, sub_type, sponsorship_start, sponsorship_end, benefit, event_description, attachment, attachment_name } = req.body;
       if (!name) return res.status(400).json({ error: 'name is required' });
       const [row] = await db`
-        INSERT INTO sponsors (name, description, email, phone, website, pic, status, notes, submitted_at, sub_type, sponsorship_start, sponsorship_end, benefit, event_description)
-        VALUES (${name}, ${description ?? null}, ${email ?? null}, ${phone ?? null}, ${website ?? null}, ${pic ?? null}, 'pending', ${notes ?? null}, ${submitted_at ?? null}, ${sub_type ?? 'pengajuan'}, ${sponsorship_start ?? null}, ${sponsorship_end ?? null}, ${benefit ?? null}, ${event_description ?? null})
+        INSERT INTO sponsors (name, description, email, phone, website, pic, status, notes, submitted_at, sub_type, sponsorship_start, sponsorship_end, benefit, event_description, attachment, attachment_name)
+        VALUES (${name}, ${description ?? null}, ${email ?? null}, ${phone ?? null}, ${website ?? null}, ${pic ?? null}, 'pending', ${notes ?? null}, ${submitted_at ?? null}, ${sub_type ?? 'pengajuan'}, ${sponsorship_start ?? null}, ${sponsorship_end ?? null}, ${benefit ?? null}, ${event_description ?? null}, ${attachment ?? null}, ${attachment_name ?? null})
         RETURNING *`;
       return res.status(201).json(row);
     }
 
     if (req.method === 'PATCH' && id) {
-      const { name, description, email, phone, website, pic, status, notes, sub_type, sponsorship_start, sponsorship_end, benefit, event_description } = req.body;
+      const { name, description, email, phone, website, pic, status, notes, sub_type, sponsorship_start, sponsorship_end, benefit, event_description, attachment, attachment_name } = req.body;
       const [row] = await db`
         UPDATE sponsors SET
           name = COALESCE(${name ?? null}, name),
@@ -50,7 +50,9 @@ export default async function handler(req, res) {
           sponsorship_start = COALESCE(${sponsorship_start ?? null}, sponsorship_start),
           sponsorship_end = COALESCE(${sponsorship_end ?? null}, sponsorship_end),
           benefit = COALESCE(${benefit ?? null}, benefit),
-          event_description = COALESCE(${event_description ?? null}, event_description)
+          event_description = COALESCE(${event_description ?? null}, event_description),
+          attachment = COALESCE(${attachment ?? null}, attachment),
+          attachment_name = COALESCE(${attachment_name ?? null}, attachment_name)
         WHERE id = ${Number(id)}
         RETURNING *`;
       if (!row) return res.status(404).json({ error: 'Sponsor not found' });

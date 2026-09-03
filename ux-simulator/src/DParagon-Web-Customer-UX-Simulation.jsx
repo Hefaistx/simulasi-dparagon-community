@@ -2715,6 +2715,7 @@ function CollaborateSection({ toast }) {
     eventDesc: "",
     socialLink: "",
     attachment: null,
+    attachmentName: "",
     subType: "pengajuan",
     sponsorStart: "",
     sponsorEnd: "",
@@ -2724,6 +2725,24 @@ function CollaborateSection({ toast }) {
   const [submitting, setSubmitting] = useState(false);
 
   const isSponsorPengajuan = type === "Sponsor" && form.subType === "pengajuan";
+
+  const handleAttachmentChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      toast("info", "Ukuran file maksimal 3MB.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) =>
+      setForm((p) => ({
+        ...p,
+        attachment: ev.target.result,
+        attachmentName: file.name,
+      }));
+    reader.readAsDataURL(file);
+  };
 
   const submit = async () => {
     if (!form.nama.trim() || !form.email.includes("@") || !form.noHp.trim()) {
@@ -2750,6 +2769,8 @@ function CollaborateSection({ toast }) {
           website: form.socialLink,
           event_date: form.eventDate || null,
           event_description: form.eventDesc,
+          attachment: form.attachment || null,
+          attachment_name: form.attachmentName || null,
           submitted_at: new Date().toISOString().slice(0, 10),
         });
       } else {
@@ -2765,6 +2786,8 @@ function CollaborateSection({ toast }) {
           sponsorship_end: form.sponsorEnd || null,
           benefit: form.benefit,
           event_description: isSponsorPengajuan ? form.eventDesc : "",
+          attachment: form.attachment || null,
+          attachment_name: form.attachmentName || null,
           submitted_at: new Date().toISOString().slice(0, 10),
         });
       }
@@ -2840,6 +2863,7 @@ function CollaborateSection({ toast }) {
                     eventDesc: "",
                     socialLink: "",
                     attachment: null,
+                    attachmentName: "",
                     subType: "pengajuan",
                     sponsorStart: "",
                     sponsorEnd: "",
@@ -3028,17 +3052,12 @@ function CollaborateSection({ toast }) {
               <Field label="Attachment File">
                 <input
                   type="file"
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      attachment: e.target.files?.[0] || null,
-                    }))
-                  }
+                  onChange={handleAttachmentChange}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-600 file:text-xs file:font-medium"
                 />
-                {form.attachment && (
+                {form.attachmentName && (
                   <p className="mt-1.5 text-xs text-gray-400">
-                    File dipilih: {form.attachment.name}
+                    File dipilih: {form.attachmentName}
                   </p>
                 )}
               </Field>

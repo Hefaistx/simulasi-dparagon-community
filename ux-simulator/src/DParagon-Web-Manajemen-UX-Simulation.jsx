@@ -76,21 +76,26 @@ const fromApiPengajuan = c => ({
   catatan: c.notes ?? '',
   tanggalAjuan: c.submitted_at,
 });
+const LEAD_STATUS_LABELS = { pending: 'Pending Review', contacted: 'Contacted', rejected: 'Rejected' };
 const fromApiOrgLead = o => ({
   id: o.id, _source: 'organizer', tipe: 'EO',
   organisasi: o.name, pic: o.pic, email: o.email, noHp: o.phone,
-  kebutuhan: o.description ?? '', status: o.status === 'pending' ? 'New' : o.status,
+  kebutuhan: o.description ?? '', status: LEAD_STATUS_LABELS[o.status] ?? o.status,
   tanggalAjuan: o.submitted_at,
   eventDate: o.event_date ?? '', eventDesc: o.event_description ?? '', website: o.website ?? '',
+  attachment: o.attachment ?? '', attachmentName: o.attachment_name ?? '',
+  catatan: o.notes ?? '',
 });
 const fromApiSponsorLead = s => ({
   id: s.id, _source: 'sponsor', tipe: 'Sponsor',
   organisasi: s.name, pic: s.pic, email: s.email, noHp: s.phone,
-  kebutuhan: s.description ?? '', status: s.status === 'pending' ? 'New' : s.status,
+  kebutuhan: s.description ?? '', status: LEAD_STATUS_LABELS[s.status] ?? s.status,
   tanggalAjuan: s.submitted_at,
   subTipe: s.sub_type === 'penawaran' ? 'Penawaran' : 'Pengajuan',
   sponsorStart: s.sponsorship_start ?? '', sponsorEnd: s.sponsorship_end ?? '',
   benefit: s.benefit ?? '', eventDesc: s.event_description ?? '', website: s.website ?? '',
+  attachment: s.attachment ?? '', attachmentName: s.attachment_name ?? '',
+  catatan: s.notes ?? '',
 });
 const fromApiStory = s => ({
   id: s.id,
@@ -107,7 +112,7 @@ const fromApiStory = s => ({
   tayangSelesai: s.publish_end_date ?? '',
   submitterEmail: s.submitter_email ?? '',
   submitterPhone: s.submitter_phone ?? '',
-  status: s.status === 'published' ? 'Published' : s.status === 'pending' ? 'Pending' : s.status === 'rejected' ? 'Rejected' : 'Draft',
+  status: s.status === 'published' ? 'Published' : s.status === 'pending' ? 'Pending Approval' : s.status === 'rejected' ? 'Rejected' : 'Draft',
   images: s.images ?? [],
 });
 const fromApiBanner = b => ({
@@ -155,7 +160,7 @@ const toApiEvent = f => ({
 });
 const toApiVenue = f => ({ name: f.nama, address: f.alamat, capacity: Number(f.kapasitas) || 0, city: f.kota, maps_link: f.mapsLink || null });
 const toApiKomunitas = f => ({ name: f.nama, description: f.deskripsi, category_id: f.kategoriId ? Number(f.kategoriId) : null, type: f.tipe, city: f.kota || null, status: f.status === 'Aktif' ? 'active' : f.status === 'Nonaktif' ? 'inactive' : 'active', wa_link: f.linkWA, admin: f.admin, cover_image: f.coverImage || '', rules: f.rules ?? [] });
-const toApiStory = f => ({ title: f.judul, type: f.tipeRelasi === 'Event' ? 'event' : f.tipeRelasi === 'Komunitas' ? 'community' : 'general', event_id: f.relatedEventId ? Number(f.relatedEventId) : null, community_id: f.relatedKomunitasId ? Number(f.relatedKomunitasId) : null, category: f.kategori, tags: f.tags ? f.tags.split(',').map(t => t.trim()).filter(Boolean) : [], cover_image: f.coverImage || '', content: f.konten, author: f.penulis, published_at: f.tanggalPublish || null, publish_end_date: f.tayangSelesai || null, status: f.status === 'Published' ? 'published' : f.status === 'Pending' ? 'pending' : f.status === 'Rejected' ? 'rejected' : 'draft' });
+const toApiStory = f => ({ title: f.judul, type: f.tipeRelasi === 'Event' ? 'event' : f.tipeRelasi === 'Komunitas' ? 'community' : 'general', event_id: f.relatedEventId ? Number(f.relatedEventId) : null, community_id: f.relatedKomunitasId ? Number(f.relatedKomunitasId) : null, category: f.kategori, tags: f.tags ? f.tags.split(',').map(t => t.trim()).filter(Boolean) : [], cover_image: f.coverImage || '', content: f.konten, author: f.penulis, published_at: f.tanggalPublish || null, publish_end_date: f.tayangSelesai || null, status: f.status === 'Published' ? 'published' : f.status === 'Pending Approval' ? 'pending' : f.status === 'Rejected' ? 'rejected' : 'draft' });
 const toApiBanner = f => ({ type: f.sumber === 'Event' ? 'event' : f.sumber === 'Artikel' ? 'story' : 'community', info_id: Number(f.relatedId), status: f.aktif ? 'active' : 'inactive', order: Number(f.urutan ?? 0) });
 
 async function apiCall(url, method = 'GET', body = null) {
@@ -239,7 +244,7 @@ function StatusBadge({ status }) {
     'Check-in': 'bg-indigo-100 text-indigo-700', 'Recap Pending': 'bg-yellow-100 text-yellow-700',
     'Recap Published': 'bg-blue-100 text-blue-700', 'New': 'bg-blue-100 text-blue-700',
     'In Review': 'bg-yellow-100 text-yellow-700', 'Qualified': 'bg-green-100 text-green-700',
-    'Pending': 'bg-yellow-100 text-yellow-700', 'Approved': 'bg-green-100 text-green-700',
+    'Pending': 'bg-yellow-100 text-yellow-700', 'Pending Approval': 'bg-yellow-100 text-yellow-700', 'Approved': 'bg-green-100 text-green-700',
     'Rejected': 'bg-red-100 text-red-600', 'Lunas': 'bg-green-100 text-green-700',
     'Gratis': 'bg-blue-100 text-blue-700', 'Belum': 'bg-gray-100 text-gray-500',
     'Sudah': 'bg-green-100 text-green-700',
@@ -1775,21 +1780,20 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
   const [form, setForm] = useState(EMPTY_STORY_FORM);
   const [formErrors, setFormErrors] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [actionModal, setActionModal] = useState(null); // { story, action: 'approve' | 'reject' }
+  const [rejectModal, setRejectModal] = useState(null); // story being rejected
   const [rejectReason, setRejectReason] = useState('');
   const [rejectReasonError, setRejectReasonError] = useState('');
 
-  const pendingCount = state.stories.filter(s => s.status === 'Pending').length;
+  const pendingCount = state.stories.filter(s => s.status === 'Pending Approval').length;
 
-  const openAction = (story, action) => { setActionModal({ story, action }); setRejectReason(''); setRejectReasonError(''); };
-  const closeAction = () => { setActionModal(null); setRejectReason(''); setRejectReasonError(''); };
+  const openReject = (story) => { setRejectModal(story); setRejectReason(''); setRejectReasonError(''); };
+  const closeReject = () => { setRejectModal(null); setRejectReason(''); setRejectReasonError(''); };
 
-  const handleAction = async () => {
-    if (actionModal.action === 'reject' && !rejectReason.trim()) { setRejectReasonError('Alasan penolakan wajib diisi'); return; }
-    const newStatus = actionModal.action === 'approve' ? 'published' : 'rejected';
-    await apiCall(`/api/stories?id=${actionModal.story.id}`, 'PATCH', { status: newStatus }); await loadData();
-    toast('success', actionModal.action === 'approve' ? 'Story disetujui dan dipublikasikan.' : 'Story ditolak.');
-    closeAction();
+  const handleReject = async () => {
+    if (!rejectReason.trim()) { setRejectReasonError('Alasan penolakan wajib diisi'); return; }
+    await apiCall(`/api/stories?id=${rejectModal.id}`, 'PATCH', { status: 'rejected' }); await loadData();
+    toast('success', 'Story ditolak.');
+    closeReject();
   };
 
   // Prefill helpers — called explicitly from onChange handlers (no stale closure risk)
@@ -1910,7 +1914,7 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
 
       {/* Filter status */}
       <div className="flex gap-2 mb-5 flex-wrap">
-        {['Semua', 'Pending', 'Published', 'Draft', 'Rejected'].map(s => (
+        {['Semua', 'Draft', 'Pending Approval', 'Published', 'Rejected'].map(s => (
           <button
             key={s}
             onClick={() => setFilterStatus(s)}
@@ -1964,13 +1968,10 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-end">
-                      {story.status === 'Pending' && (
-                        <>
-                          <button onClick={() => openAction(story, 'approve')} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg" title="Approve"><CheckCircle size={14} /></button>
-                          <button onClick={() => openAction(story, 'reject')} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Reject"><XCircle size={14} /></button>
-                        </>
+                      {story.status === 'Pending Approval' && (
+                        <button onClick={() => openReject(story)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Reject"><XCircle size={14} /></button>
                       )}
-                      <button onClick={() => openEdit(story)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Edit2 size={14} /></button>
+                      <button onClick={() => openEdit(story)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title={story.status === 'Pending Approval' ? 'Tinjau & Publish' : 'Edit'}><Edit2 size={14} /></button>
                       <button onClick={() => setDeleteConfirm(story)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Hapus"><Trash2 size={14} /></button>
                     </div>
                   </td>
@@ -2067,11 +2068,14 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
 
           <Field label="Status">
             <FSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+              {form.status === 'Pending Approval' && <option value="Pending Approval">Pending Approval (dari pengajuan web)</option>}
               <option value="Draft">Draft</option>
-              <option value="Pending">Pending</option>
               <option value="Published">Published</option>
               <option value="Rejected">Rejected</option>
             </FSelect>
+            {form.status === 'Pending Approval' && (
+              <p className="mt-1.5 text-xs text-gray-400">Pilih Published atau Rejected untuk menindaklanjuti pengajuan ini.</p>
+            )}
           </Field>
 
           {formModal?.story && (formModal.story.submitterEmail || formModal.story.submitterPhone) && (
@@ -2098,29 +2102,23 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
         onCancel={() => setDeleteConfirm(null)}
       />
 
-      {/* Approve / Reject Modal */}
+      {/* Reject Modal */}
       <Modal
-        open={!!actionModal}
-        title={actionModal?.action === 'approve' ? 'Setujui Story' : 'Tolak Story'}
-        onClose={closeAction}
+        open={!!rejectModal}
+        title="Tolak Story"
+        onClose={closeReject}
       >
         <div className="space-y-4">
           <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-sm font-medium text-gray-900">{actionModal?.story?.judul}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Penulis: {actionModal?.story?.penulis || '-'}</p>
+            <p className="text-sm font-medium text-gray-900">{rejectModal?.judul}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Penulis: {rejectModal?.penulis || '-'}</p>
           </div>
-          {actionModal?.action === 'approve' ? (
-            <p className="text-sm text-gray-600">Story ini akan disetujui dan langsung berstatus Published.</p>
-          ) : (
-            <Field label="Alasan Penolakan *" error={rejectReasonError}>
-              <FTextarea value={rejectReason} onChange={e => { setRejectReason(e.target.value); setRejectReasonError(''); }} rows={3} placeholder="Contoh: Konten belum sesuai pedoman komunitas..." />
-            </Field>
-          )}
+          <Field label="Alasan Penolakan *" error={rejectReasonError}>
+            <FTextarea value={rejectReason} onChange={e => { setRejectReason(e.target.value); setRejectReasonError(''); }} rows={3} placeholder="Contoh: Konten belum sesuai pedoman komunitas..." />
+          </Field>
           <div className="flex gap-3 pt-2">
-            <button onClick={closeAction} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
-            <button onClick={handleAction} className={`flex-1 text-white rounded-lg py-2 text-sm ${actionModal?.action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
-              {actionModal?.action === 'approve' ? 'Setujui' : 'Tolak'}
-            </button>
+            <button onClick={closeReject} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
+            <button onClick={handleReject} className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm hover:bg-red-700">Tolak</button>
           </div>
         </div>
       </Modal>
@@ -2597,24 +2595,63 @@ function ReviewVerificationPage({ state, dispatch, toast, loadData }) {
 // PAGE: PARTNERSHIP LEADS (PENGAJUAN EO & SPONSOR)
 // ═══════════════════════════════════════════════════════════════
 const STATUS_LEAD_COLORS = {
-  'New': 'bg-yellow-100 text-yellow-700',
-  'contacted': 'bg-blue-100 text-blue-700',
-  'active': 'bg-green-100 text-green-700',
-  'rejected': 'bg-red-100 text-red-700',
+  'Pending Review': 'bg-yellow-100 text-yellow-700',
+  'Contacted': 'bg-blue-100 text-blue-700',
+  'Rejected': 'bg-red-100 text-red-700',
 };
 
 function PartnershipLeadsPage({ state, toast, loadData }) {
   const [filterTipe, setFilterTipe] = useState('Semua');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('Semua');
+  const [searchOrganisasi, setSearchOrganisasi] = useState('');
+  const [searchPic, setSearchPic] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [detailLead, setDetailLead] = useState(null);
+  const [rejectModal, setRejectModal] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectReasonError, setRejectReasonError] = useState('');
 
-  const filtered = state.partnershipLeads.filter(l => filterTipe === 'Semua' || l.tipe === filterTipe);
-  const newCount = state.partnershipLeads.filter(l => l.status === 'New').length;
+  const activeFilterCount = [
+    filterStatus !== 'Semua',
+    searchOrganisasi.trim() !== '',
+    searchPic.trim() !== '',
+    dateFrom !== '',
+    dateTo !== '',
+  ].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setFilterStatus('Semua'); setSearchOrganisasi(''); setSearchPic(''); setDateFrom(''); setDateTo('');
+  };
+
+  const filtered = state.partnershipLeads.filter(l =>
+    (filterTipe === 'Semua' || l.tipe === filterTipe) &&
+    (filterStatus === 'Semua' || l.status === filterStatus) &&
+    (searchOrganisasi.trim() === '' || l.organisasi?.toLowerCase().includes(searchOrganisasi.trim().toLowerCase())) &&
+    (searchPic.trim() === '' || l.pic?.toLowerCase().includes(searchPic.trim().toLowerCase())) &&
+    (dateFrom === '' || (l.tanggalAjuan && l.tanggalAjuan >= dateFrom)) &&
+    (dateTo === '' || (l.tanggalAjuan && l.tanggalAjuan <= dateTo))
+  );
+  const newCount = state.partnershipLeads.filter(l => l.status === 'Pending Review').length;
 
   const handleMarkContacted = async (lead) => {
     const resource = lead._source === 'organizer' ? 'organizers' : 'sponsors';
     await apiCall(`/api/${resource}?id=${lead.id}`, 'PATCH', { status: 'contacted' });
     await loadData();
     toast('success', `${lead.organisasi} ditandai sudah dihubungi.`);
+  };
+
+  const openReject = (lead) => { setRejectModal(lead); setRejectReason(''); setRejectReasonError(''); };
+  const closeReject = () => { setRejectModal(null); setRejectReason(''); setRejectReasonError(''); };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) { setRejectReasonError('Alasan penolakan wajib diisi'); return; }
+    const resource = rejectModal._source === 'organizer' ? 'organizers' : 'sponsors';
+    await apiCall(`/api/${resource}?id=${rejectModal.id}`, 'PATCH', { status: 'rejected', notes: rejectReason });
+    await loadData();
+    toast('success', `Pengajuan ${rejectModal.organisasi} ditolak.`);
+    closeReject();
   };
 
   return (
@@ -2626,15 +2663,60 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
             {newCount > 0 ? <span className="text-yellow-600 font-medium">{newCount} pengajuan baru</span> : 'Semua pengajuan sudah ditindaklanjuti'}
           </p>
         </div>
-        <select
-          value={filterTipe}
-          onChange={e => setFilterTipe(e.target.value)}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      </div>
+
+      <div className="flex gap-2 mb-3 flex-wrap">
+        {['Semua', 'EO', 'Sponsor'].map(t => (
+          <button
+            key={t}
+            onClick={() => setFilterTipe(t)}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${filterTipe === t ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'}`}
+          >{t}</button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+        <button
+          onClick={() => setFilterOpen(p => !p)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          {['Semua', 'EO', 'Sponsor'].map(t => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
+          <span className="flex items-center gap-2">
+            Filter Lanjutan
+            {activeFilterCount > 0 && (
+              <span className="bg-blue-100 text-blue-700 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{activeFilterCount}</span>
+            )}
+          </span>
+          <ChevronDown size={15} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {filterOpen && (
+          <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+            <div className="grid md:grid-cols-2 gap-3">
+              <Field label="Status">
+                <FSelect value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                  {['Semua', 'Pending Review', 'Contacted', 'Rejected'].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </FSelect>
+              </Field>
+              <div />
+              <Field label="Cari Organisasi">
+                <FInput value={searchOrganisasi} onChange={e => setSearchOrganisasi(e.target.value)} placeholder="Nama organisasi/brand..." />
+              </Field>
+              <Field label="Cari PIC">
+                <FInput value={searchPic} onChange={e => setSearchPic(e.target.value)} placeholder="Nama PIC..." />
+              </Field>
+              <Field label="Tanggal Ajuan Dari">
+                <FInput type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+              </Field>
+              <Field label="Tanggal Ajuan Sampai">
+                <FInput type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+              </Field>
+            </div>
+            {activeFilterCount > 0 && (
+              <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">Reset filter</button>
+            )}
+          </div>
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -2645,8 +2727,10 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipe</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Organisasi / PIC</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Kontak</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Organisasi</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">PIC</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">No. HP</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Kebutuhan</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tanggal</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -2664,16 +2748,12 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
                       <span className="block mt-1 text-xs text-gray-400">{lead.subTipe}</span>
                     )}
                   </td>
+                  <td className="px-4 py-4 font-medium text-gray-900">{lead.organisasi}</td>
+                  <td className="px-4 py-4 text-gray-600">{lead.pic || '-'}</td>
+                  <td className="px-4 py-4 text-gray-600">{lead.email}</td>
+                  <td className="px-4 py-4 text-gray-600 whitespace-nowrap">{lead.noHp}</td>
                   <td className="px-4 py-4">
-                    <div className="font-medium text-gray-900">{lead.organisasi}</div>
-                    <div className="text-xs text-gray-400">PIC: {lead.pic}</div>
-                  </td>
-                  <td className="px-4 py-4 text-gray-600">
-                    <div>{lead.email}</div>
-                    <div className="text-xs text-gray-400">{lead.noHp}</div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <p className="text-gray-600 max-w-55 line-clamp-2">{lead.kebutuhan}</p>
+                    <p className="text-gray-600 max-w-45 line-clamp-2">{lead.kebutuhan}</p>
                   </td>
                   <td className="px-4 py-4 text-gray-500 whitespace-nowrap">{lead.tanggalAjuan}</td>
                   <td className="px-4 py-4 text-center">
@@ -2690,13 +2770,22 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
                       >
                         <Eye size={15} />
                       </button>
-                      {lead.status === 'New' && (
-                        <button
-                          onClick={() => handleMarkContacted(lead)}
-                          className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          Tandai Dihubungi
-                        </button>
+                      {lead.status === 'Pending Review' && (
+                        <>
+                          <button
+                            onClick={() => handleMarkContacted(lead)}
+                            className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            Tandai Dihubungi
+                          </button>
+                          <button
+                            onClick={() => openReject(lead)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Reject"
+                          >
+                            <XCircle size={15} />
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -2741,8 +2830,42 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
             {detailLead.tipe === 'Sponsor' && (
               <DetailRow label="Benefit" value={detailLead.benefit} block />
             )}
+            <div>
+              <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Attachment</div>
+              {detailLead.attachment ? (
+                <a
+                  href={detailLead.attachment}
+                  download={detailLead.attachmentName || 'attachment'}
+                  className="inline-flex items-center gap-1.5 text-blue-600 hover:underline text-sm"
+                >
+                  <FileText size={14} /> {detailLead.attachmentName || 'Unduh file'}
+                </a>
+              ) : (
+                <p className="text-gray-400 text-sm">-</p>
+              )}
+            </div>
+            {detailLead.status === 'Rejected' && detailLead.catatan && (
+              <DetailRow label="Alasan Penolakan" value={detailLead.catatan} block />
+            )}
           </div>
         )}
+      </Modal>
+
+      {/* Reject Modal */}
+      <Modal open={!!rejectModal} title="Tolak Pengajuan" onClose={closeReject}>
+        <div className="space-y-4">
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-sm font-medium text-gray-900">{rejectModal?.organisasi}</p>
+            <p className="text-xs text-gray-500 mt-0.5">PIC: {rejectModal?.pic || '-'}</p>
+          </div>
+          <Field label="Alasan Penolakan *" error={rejectReasonError}>
+            <FTextarea value={rejectReason} onChange={e => { setRejectReason(e.target.value); setRejectReasonError(''); }} rows={3} placeholder="Contoh: Konsep belum sesuai dengan kebutuhan komunitas..." />
+          </Field>
+          <div className="flex gap-3 pt-2">
+            <button onClick={closeReject} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
+            <button onClick={handleReject} className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm hover:bg-red-700">Tolak</button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
@@ -2784,8 +2907,8 @@ export default function App() {
           partisipan: data.partisipan.map(fromApiPartisipan),
           pengajuanKlub: data.komunitas.filter(c => c.status === 'pending').map(fromApiPengajuan),
           partnershipLeads: [
-            ...data.organizers.map(fromApiOrgLead),
-            ...data.sponsors.map(fromApiSponsorLead),
+            ...data.organizers.filter(o => o.status !== 'active').map(fromApiOrgLead),
+            ...data.sponsors.filter(s => s.status !== 'active').map(fromApiSponsorLead),
           ],
           stories: data.stories.map(fromApiStory),
           headBanners: data.banners.map(fromApiBanner),
@@ -2815,8 +2938,8 @@ export default function App() {
   const sharedProps = { state, dispatch, toast: addToast, onNav: handleNav, loadData };
   const pendingPengajuan = state.pengajuanKlub.filter(p => p.status === 'Pending').length;
   const pendingReviews = state.reviews.filter(r => r.status === 'Pending').length;
-  const pendingLeads = state.partnershipLeads.filter(l => l.status === 'New').length;
-  const pendingStories = state.stories.filter(s => s.status === 'Pending').length;
+  const pendingLeads = state.partnershipLeads.filter(l => l.status === 'Pending Review').length;
+  const pendingStories = state.stories.filter(s => s.status === 'Pending Approval').length;
 
 
   const pageMap = {
