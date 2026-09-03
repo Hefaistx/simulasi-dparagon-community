@@ -2712,6 +2712,7 @@ function CollaborateSection({ toast }) {
     noHp: "",
     kebutuhan: "",
     eventDate: "",
+    eventDateEnd: "",
     eventDesc: "",
     socialLink: "",
     attachment: null,
@@ -2749,7 +2750,7 @@ function CollaborateSection({ toast }) {
       toast("info", "Lengkapi nama, email, dan nomor HP terlebih dahulu.");
       return;
     }
-    if (type === "EO" && !form.eventDate) {
+    if (type === "EO" && (!form.eventDate || !form.eventDateEnd)) {
       toast("info", "Isi tanggal event terlebih dahulu.");
       return;
     }
@@ -2768,6 +2769,7 @@ function CollaborateSection({ toast }) {
           pic: form.nama,
           website: form.socialLink,
           event_date: form.eventDate || null,
+          event_date_end: form.eventDateEnd || null,
           event_description: form.eventDesc,
           attachment: form.attachment || null,
           attachment_name: form.attachmentName || null,
@@ -2860,6 +2862,7 @@ function CollaborateSection({ toast }) {
                     noHp: "",
                     kebutuhan: "",
                     eventDate: "",
+                    eventDateEnd: "",
                     eventDesc: "",
                     socialLink: "",
                     attachment: null,
@@ -2952,15 +2955,27 @@ function CollaborateSection({ toast }) {
                 </Field>
               </div>
               {type === "EO" && (
-                <div className="grid md:grid-cols-2 gap-4">
+                <>
                   <Field label="Tanggal Event Diadakan *">
-                    <FInput
-                      type="date"
-                      value={form.eventDate}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, eventDate: e.target.value }))
-                      }
-                    />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <FInput
+                        type="date"
+                        className="flex-1 min-w-0"
+                        value={form.eventDate}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, eventDate: e.target.value }))
+                        }
+                      />
+                      <span className="text-xs text-gray-400 shrink-0">s/d</span>
+                      <FInput
+                        type="date"
+                        className="flex-1 min-w-0"
+                        value={form.eventDateEnd}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, eventDateEnd: e.target.value }))
+                        }
+                      />
+                    </div>
                   </Field>
                   <Field label="Link Sosmed / Web">
                     <FInput
@@ -2971,15 +2986,16 @@ function CollaborateSection({ toast }) {
                       placeholder="instagram.com/namaevent (opsional)"
                     />
                   </Field>
-                </div>
+                </>
               )}
 
               {type === "Sponsor" && (
-                <div className="grid md:grid-cols-2 gap-4">
+                <>
                   <Field label="Periode Sponsorship Berlaku *">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <FInput
                         type="date"
+                        className="flex-1 min-w-0"
                         value={form.sponsorStart}
                         onChange={(e) =>
                           setForm((p) => ({ ...p, sponsorStart: e.target.value }))
@@ -2988,6 +3004,7 @@ function CollaborateSection({ toast }) {
                       <span className="text-xs text-gray-400 shrink-0">s/d</span>
                       <FInput
                         type="date"
+                        className="flex-1 min-w-0"
                         value={form.sponsorEnd}
                         onChange={(e) =>
                           setForm((p) => ({ ...p, sponsorEnd: e.target.value }))
@@ -3004,7 +3021,7 @@ function CollaborateSection({ toast }) {
                       placeholder="instagram.com/brandkamu (opsional)"
                     />
                   </Field>
-                </div>
+                </>
               )}
 
               {(type === "EO" || isSponsorPengajuan) && (

@@ -82,7 +82,7 @@ const fromApiOrgLead = o => ({
   organisasi: o.name, pic: o.pic, email: o.email, noHp: o.phone,
   kebutuhan: o.description ?? '', status: LEAD_STATUS_LABELS[o.status] ?? o.status,
   tanggalAjuan: o.submitted_at,
-  eventDate: o.event_date ?? '', eventDesc: o.event_description ?? '', website: o.website ?? '',
+  eventDate: o.event_date ?? '', eventDateEnd: o.event_date_end ?? '', eventDesc: o.event_description ?? '', website: o.website ?? '',
   attachment: o.attachment ?? '', attachmentName: o.attachment_name ?? '',
   catatan: o.notes ?? '',
 });
@@ -3006,7 +3006,7 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
               <DetailRow label="Email" value={detailLead.email} />
               <DetailRow label="No. HP" value={detailLead.noHp} />
               {detailLead.tipe === 'EO' && (
-                <DetailRow label="Tanggal Event" value={detailLead.eventDate} />
+                <DetailRow label="Tanggal Event" value={detailLead.eventDate || detailLead.eventDateEnd ? `${detailLead.eventDate || '-'} s/d ${detailLead.eventDateEnd || '-'}` : '-'} />
               )}
               {detailLead.tipe === 'Sponsor' && (
                 <DetailRow label="Periode Sponsorship" value={detailLead.sponsorStart || detailLead.sponsorEnd ? `${detailLead.sponsorStart || '-'} s/d ${detailLead.sponsorEnd || '-'}` : '-'} />

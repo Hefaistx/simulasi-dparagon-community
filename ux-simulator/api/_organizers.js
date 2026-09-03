@@ -25,17 +25,17 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, description, email, phone, website, pic, notes, submitted_at, event_date, event_description, attachment, attachment_name } = req.body;
+      const { name, description, email, phone, website, pic, notes, submitted_at, event_date, event_date_end, event_description, attachment, attachment_name } = req.body;
       if (!name) return res.status(400).json({ error: 'name is required' });
       const [row] = await db`
-        INSERT INTO organizers (name, description, email, phone, website, pic, status, notes, submitted_at, event_date, event_description, attachment, attachment_name)
-        VALUES (${name}, ${description ?? null}, ${email ?? null}, ${phone ?? null}, ${website ?? null}, ${pic ?? null}, 'pending', ${notes ?? null}, ${submitted_at ?? null}, ${event_date ?? null}, ${event_description ?? null}, ${attachment ?? null}, ${attachment_name ?? null})
+        INSERT INTO organizers (name, description, email, phone, website, pic, status, notes, submitted_at, event_date, event_date_end, event_description, attachment, attachment_name)
+        VALUES (${name}, ${description ?? null}, ${email ?? null}, ${phone ?? null}, ${website ?? null}, ${pic ?? null}, 'pending', ${notes ?? null}, ${submitted_at ?? null}, ${event_date ?? null}, ${event_date_end ?? null}, ${event_description ?? null}, ${attachment ?? null}, ${attachment_name ?? null})
         RETURNING *`;
       return res.status(201).json(row);
     }
 
     if (req.method === 'PATCH' && id) {
-      const { name, description, email, phone, website, pic, status, notes, event_date, event_description, attachment, attachment_name } = req.body;
+      const { name, description, email, phone, website, pic, status, notes, event_date, event_date_end, event_description, attachment, attachment_name } = req.body;
       const [row] = await db`
         UPDATE organizers SET
           name = COALESCE(${name ?? null}, name),
@@ -47,6 +47,7 @@ export default async function handler(req, res) {
           status = COALESCE(${status ?? null}, status),
           notes = COALESCE(${notes ?? null}, notes),
           event_date = COALESCE(${event_date ?? null}, event_date),
+          event_date_end = COALESCE(${event_date_end ?? null}, event_date_end),
           event_description = COALESCE(${event_description ?? null}, event_description),
           attachment = COALESCE(${attachment ?? null}, attachment),
           attachment_name = COALESCE(${attachment_name ?? null}, attachment_name)

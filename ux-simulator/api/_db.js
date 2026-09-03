@@ -18,6 +18,7 @@ export async function createTables() {
   await db`CREATE TABLE IF NOT EXISTS community_members (id SERIAL PRIMARY KEY, community_id INTEGER REFERENCES communities(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, joined_at TIMESTAMPTZ DEFAULT NOW(), status TEXT DEFAULT 'active', UNIQUE(community_id, user_id))`;
   await db`CREATE TABLE IF NOT EXISTS organizers (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, email TEXT, phone TEXT, website TEXT, pic TEXT, status TEXT DEFAULT 'active', notes TEXT, submitted_at DATE)`;
   await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS event_date DATE`;
+  await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS event_date_end DATE`;
   await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS event_description TEXT`;
   await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS attachment TEXT`;
   await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS attachment_name TEXT`;
