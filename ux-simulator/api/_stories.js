@@ -63,7 +63,8 @@ export default async function handler(req, res) {
           publish_end_date = COALESCE(${publish_end_date ?? null}, publish_end_date),
           submitter_email = COALESCE(${submitter_email ?? null}, submitter_email),
           submitter_phone = COALESCE(${submitter_phone ?? null}, submitter_phone),
-          status = COALESCE(${status ?? null}, status)
+          status = COALESCE(${status ?? null}, status),
+          updated_at = NOW()
         WHERE id = ${Number(id)}
         RETURNING *`;
       if (!story) return res.status(404).json({ error: 'Story not found' });

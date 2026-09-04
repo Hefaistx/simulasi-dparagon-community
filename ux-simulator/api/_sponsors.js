@@ -52,7 +52,8 @@ export default async function handler(req, res) {
           benefit = COALESCE(${benefit ?? null}, benefit),
           event_description = COALESCE(${event_description ?? null}, event_description),
           attachment = COALESCE(${attachment ?? null}, attachment),
-          attachment_name = COALESCE(${attachment_name ?? null}, attachment_name)
+          attachment_name = COALESCE(${attachment_name ?? null}, attachment_name),
+          updated_at = NOW()
         WHERE id = ${Number(id)}
         RETURNING *`;
       if (!row) return res.status(404).json({ error: 'Sponsor not found' });

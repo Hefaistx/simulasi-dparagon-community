@@ -63,7 +63,8 @@ export default async function handler(req, res) {
           pic_name = COALESCE(${pic_name ?? null}, pic_name),
           pic_email = COALESCE(${pic_email ?? null}, pic_email),
           pic_phone = COALESCE(${pic_phone ?? null}, pic_phone),
-          notes = COALESCE(${notes ?? null}, notes)
+          notes = COALESCE(${notes ?? null}, notes),
+          updated_at = NOW()
         WHERE id = ${Number(id)}
         RETURNING *`;
       if (!row) return res.status(404).json({ error: 'Community not found' });

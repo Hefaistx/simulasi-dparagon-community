@@ -15,6 +15,7 @@ export async function createTables() {
   await db`ALTER TABLE venues DROP COLUMN IF EXISTS type`;
   await db`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, phone TEXT, city TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`;
   await db`CREATE TABLE IF NOT EXISTS communities (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, category_id INTEGER REFERENCES community_categories(id), type TEXT, city TEXT, status TEXT DEFAULT 'active', wa_link TEXT, admin TEXT, cover_image TEXT, rules JSONB DEFAULT '[]', pic_name TEXT, pic_email TEXT, pic_phone TEXT, notes TEXT, submitted_at DATE, created_at TIMESTAMPTZ DEFAULT NOW())`;
+  await db`ALTER TABLE communities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
   await db`CREATE TABLE IF NOT EXISTS community_members (id SERIAL PRIMARY KEY, community_id INTEGER REFERENCES communities(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, joined_at TIMESTAMPTZ DEFAULT NOW(), status TEXT DEFAULT 'active', UNIQUE(community_id, user_id))`;
   await db`CREATE TABLE IF NOT EXISTS organizers (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, email TEXT, phone TEXT, website TEXT, pic TEXT, status TEXT DEFAULT 'active', notes TEXT, submitted_at DATE)`;
   await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS event_date DATE`;
@@ -22,6 +23,8 @@ export async function createTables() {
   await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS event_description TEXT`;
   await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS attachment TEXT`;
   await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS attachment_name TEXT`;
+  await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`;
+  await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
   await db`CREATE TABLE IF NOT EXISTS sponsors (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, email TEXT, phone TEXT, website TEXT, pic TEXT, status TEXT DEFAULT 'active', notes TEXT, submitted_at DATE)`;
   await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS sub_type TEXT DEFAULT 'pengajuan'`;
   await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS sponsorship_start DATE`;
@@ -30,7 +33,10 @@ export async function createTables() {
   await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS event_description TEXT`;
   await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS attachment TEXT`;
   await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS attachment_name TEXT`;
+  await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`;
+  await db`ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
   await db`CREATE TABLE IF NOT EXISTS events (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, category_id INTEGER REFERENCES event_categories(id), venue_id INTEGER REFERENCES venues(id), status TEXT DEFAULT 'Draft', start_date DATE, end_date DATE, start_time TIME, end_time TIME, quota INTEGER, price INTEGER DEFAULT 0, cover_image TEXT, community_id INTEGER REFERENCES communities(id), facilities JSONB DEFAULT '[]', rules JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT NOW())`;
+  await db`ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
   await db`CREATE TABLE IF NOT EXISTS event_organizers (event_id INTEGER REFERENCES events(id) ON DELETE CASCADE, organizer_id INTEGER REFERENCES organizers(id) ON DELETE CASCADE, PRIMARY KEY (event_id, organizer_id))`;
   await db`CREATE TABLE IF NOT EXISTS event_sponsors (event_id INTEGER REFERENCES events(id) ON DELETE CASCADE, sponsor_id INTEGER REFERENCES sponsors(id) ON DELETE CASCADE, PRIMARY KEY (event_id, sponsor_id))`;
   await db`CREATE TABLE IF NOT EXISTS event_agenda (id SERIAL PRIMARY KEY, event_id INTEGER REFERENCES events(id) ON DELETE CASCADE, time TIME, activity TEXT, "order" INTEGER DEFAULT 0)`;
@@ -39,6 +45,7 @@ export async function createTables() {
   await db`ALTER TABLE stories ADD COLUMN IF NOT EXISTS publish_end_date DATE`;
   await db`ALTER TABLE stories ADD COLUMN IF NOT EXISTS submitter_email TEXT`;
   await db`ALTER TABLE stories ADD COLUMN IF NOT EXISTS submitter_phone TEXT`;
+  await db`ALTER TABLE stories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
   await db`CREATE TABLE IF NOT EXISTS story_images (id SERIAL PRIMARY KEY, story_id INTEGER REFERENCES stories(id) ON DELETE CASCADE, image_url TEXT NOT NULL, "order" INTEGER DEFAULT 0)`;
   await db`CREATE TABLE IF NOT EXISTS reviews (id SERIAL PRIMARY KEY, event_id INTEGER REFERENCES events(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id), rating INTEGER CHECK (rating BETWEEN 1 AND 5), comment TEXT, status TEXT DEFAULT 'pending', submitted_at TIMESTAMPTZ DEFAULT NOW())`;
   await db`CREATE TABLE IF NOT EXISTS banners (id SERIAL PRIMARY KEY, type TEXT NOT NULL, info_id INTEGER NOT NULL, status TEXT DEFAULT 'active', "order" INTEGER DEFAULT 0)`;

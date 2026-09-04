@@ -50,7 +50,8 @@ export default async function handler(req, res) {
           event_date_end = COALESCE(${event_date_end ?? null}, event_date_end),
           event_description = COALESCE(${event_description ?? null}, event_description),
           attachment = COALESCE(${attachment ?? null}, attachment),
-          attachment_name = COALESCE(${attachment_name ?? null}, attachment_name)
+          attachment_name = COALESCE(${attachment_name ?? null}, attachment_name),
+          updated_at = NOW()
         WHERE id = ${Number(id)}
         RETURNING *`;
       if (!row) return res.status(404).json({ error: 'Organizer not found' });

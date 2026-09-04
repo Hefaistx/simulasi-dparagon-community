@@ -58,7 +58,7 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH' && id && action === 'status') {
       const { status } = req.body;
       if (!status) return res.status(400).json({ error: 'status is required' });
-      const [event] = await db`UPDATE events SET status = ${status} WHERE id = ${Number(id)} RETURNING *`;
+      const [event] = await db`UPDATE events SET status = ${status}, updated_at = NOW() WHERE id = ${Number(id)} RETURNING *`;
       if (!event) return res.status(404).json({ error: 'Event not found' });
       return res.status(200).json(event);
     }
@@ -94,7 +94,8 @@ export default async function handler(req, res) {
           cover_image = COALESCE(${cover_image ?? null}, cover_image),
           community_id = COALESCE(${community_id ?? null}, community_id),
           facilities = COALESCE(${facilities !== undefined ? JSON.stringify(facilities) : null}::jsonb, facilities),
-          rules = COALESCE(${rules !== undefined ? JSON.stringify(rules) : null}::jsonb, rules)
+          rules = COALESCE(${rules !== undefined ? JSON.stringify(rules) : null}::jsonb, rules),
+          updated_at = NOW()
         WHERE id = ${Number(id)}
         RETURNING *`;
       if (!event) return res.status(404).json({ error: 'Event not found' });

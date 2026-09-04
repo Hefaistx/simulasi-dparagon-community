@@ -1,7 +1,7 @@
 import React, { useState, useReducer, useEffect, useRef } from 'react';
 import {
   Tag, MapPin, Building2, Calendar, Users, Plus, Edit2, Trash2,
-  CheckCircle, XCircle, Search, Download, X, AlertTriangle,
+  CheckCircle, XCircle, Download, X, AlertTriangle,
   ChevronLeft, ChevronRight, ChevronDown, Layers, FileText, BarChart2, Eye, ArrowLeft,
   GripVertical, Image, ToggleLeft, ToggleRight, Star, Handshake
 } from 'lucide-react';
@@ -108,6 +108,7 @@ const fromApiEvent = e => ({
   sponsors: e.sponsors ?? [],
   agenda: e.agenda ?? [],
   pendaftar: Number(e.pendaftar ?? 0),
+  createdAt: e.created_at, updatedAt: e.updated_at,
 });
 const fromApiKomunitas = c => ({
   id: c.id,
@@ -122,6 +123,7 @@ const fromApiKomunitas = c => ({
   admin: c.admin,
   coverImage: c.cover_image ?? '',
   rules: c.rules ?? [],
+  createdAt: c.created_at, updatedAt: c.updated_at,
 });
 const fromApiPengajuan = c => ({
   id: c.id,
@@ -134,6 +136,7 @@ const fromApiPengajuan = c => ({
   status: c.status === 'active' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Pending',
   catatan: c.notes ?? '',
   tanggalAjuan: c.submitted_at,
+  createdAt: c.created_at, updatedAt: c.updated_at,
 });
 const LEAD_STATUS_LABELS = { pending: 'Pending Review', contacted: 'Contacted', rejected: 'Rejected' };
 const fromApiOrgLead = o => ({
@@ -144,6 +147,7 @@ const fromApiOrgLead = o => ({
   eventDate: o.event_date ?? '', eventDateEnd: o.event_date_end ?? '', eventDesc: o.event_description ?? '', website: o.website ?? '',
   attachment: o.attachment ?? '', attachmentName: o.attachment_name ?? '',
   catatan: o.notes ?? '',
+  createdAt: o.created_at, updatedAt: o.updated_at,
 });
 const fromApiSponsorLead = s => ({
   id: s.id, _source: 'sponsor', tipe: 'Sponsor',
@@ -155,6 +159,7 @@ const fromApiSponsorLead = s => ({
   benefit: s.benefit ?? '', eventDesc: s.event_description ?? '', website: s.website ?? '',
   attachment: s.attachment ?? '', attachmentName: s.attachment_name ?? '',
   catatan: s.notes ?? '',
+  createdAt: s.created_at, updatedAt: s.updated_at,
 });
 const fromApiStory = s => ({
   id: s.id,
@@ -173,6 +178,7 @@ const fromApiStory = s => ({
   submitterPhone: s.submitter_phone ?? '',
   status: s.status === 'published' ? 'Published' : s.status === 'pending' ? 'Pending Approval' : s.status === 'rejected' ? 'Rejected' : 'Draft',
   images: s.images ?? [],
+  createdAt: s.created_at, updatedAt: s.updated_at,
 });
 const fromApiBanner = b => ({
   id: b.id,
@@ -290,10 +296,41 @@ function reducer(state, action) {
 // ═══════════════════════════════════════════════════════════════
 const fmt = (n) => Number(n).toLocaleString('id-ID');
 const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+const fmtDateTime = (d) => {
+  if (!d) return '—';
+  return new Date(d).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
 
 // ═══════════════════════════════════════════════════════════════
 // SHARED UI COMPONENTS
 // ═══════════════════════════════════════════════════════════════
+function StatBox({ label, value }) {
+  return (
+    <div className="border border-gray-200 rounded-lg px-4 py-2.5 text-center min-w-[130px] bg-white shrink-0">
+      <div className="text-xs text-gray-400 mb-0.5 whitespace-nowrap">{label}</div>
+      <div className="font-bold text-gray-900 text-lg">{value}</div>
+    </div>
+  );
+}
+
+function ExportButtons({ toast, label = 'data' }) {
+  return (
+    <div className="flex gap-2">
+      <button
+        onClick={() => toast('success', `Export Excel ${label} berhasil (simulasi).`)}
+        className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+      >
+        <Download size={14} /> Export Excel
+      </button>
+      <button
+        onClick={() => toast('success', `Export PDF ${label} berhasil (simulasi).`)}
+        className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
+      >
+        <FileText size={14} /> Export PDF
+      </button>
+    </div>
+  );
+}
 function StatusBadge({ status }) {
   const map = {
     'Aktif': 'bg-green-100 text-green-700', 'Nonaktif': 'bg-gray-100 text-gray-500',
@@ -1376,7 +1413,16 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
           <h1 className="text-xl font-bold text-gray-900">List Event</h1>
           <p className="text-sm text-gray-500">Dashboard pengelolaan siklus hidup event</p>
         </div>
-        <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Plus size={16} /> Buat Event</button>
+        <div className="flex items-center gap-2">
+          <ExportButtons toast={toast} label="event" />
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Plus size={16} /> Buat Event</button>
+        </div>
+      </div>
+
+      <div className="flex gap-3 mb-5 flex-wrap">
+        <StatBox label="Total Event" value={state.events.length} />
+        <StatBox label="Registration Open" value={state.events.filter(e => e.status === 'Registration Open').length} />
+        <StatBox label="Total Pendaftar" value={fmt(state.events.reduce((a, e) => a + (e.pendaftar || 0), 0))} />
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
@@ -1418,7 +1464,7 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
         <EmptyState title="Tidak ada event" desc={filterStatus !== 'Semua' || activeFilterCount > 0 ? 'Tidak ada event yang cocok dengan filter.' : 'Buat event pertama'} />
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-          <table className="w-full min-w-[860px]">
+          <table className="w-full min-w-[1150px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Nama Event</th>
@@ -1428,6 +1474,8 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Kuota</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Harga</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Dibuat</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Diupdate</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Aksi</th>
               </tr>
             </thead>
@@ -1441,6 +1489,8 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
                   <td className="px-4 py-3 text-right text-sm text-gray-700">{fmt(ev.kuota)}</td>
                   <td className="px-4 py-3 text-right text-sm text-gray-700 whitespace-nowrap">{ev.harga === 0 ? <span className="text-green-600 font-medium">Gratis</span> : `Rp ${fmt(ev.harga)}`}</td>
                   <td className="px-4 py-3"><StatusBadge status={ev.status} /></td>
+                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(ev.createdAt)}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(ev.updatedAt)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 justify-end">
                       <button onClick={() => setDetail(ev)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Detail"><Eye size={14} /></button>
@@ -1592,14 +1642,20 @@ function KalenderEventPage({ state }) {
 // ═══════════════════════════════════════════════════════════════
 // PAGE: PARTISIPAN EVENT
 // ═══════════════════════════════════════════════════════════════
-function PartisipanEventPage({ state, initialEventId }) {
+function PartisipanEventPage({ state, toast, initialEventId }) {
   const [selectedEventId, setSelectedEventId] = useState(initialEventId || null);
   const [search, setSearch] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterBayar, setFilterBayar] = useState('Semua');
+  const [filterCheckIn, setFilterCheckIn] = useState('Semua');
 
   const partisipan = state.partisipan.filter(p => p.eventId === Number(selectedEventId));
+  const activeFilterCount = [search.trim() !== '', filterBayar !== 'Semua', filterCheckIn !== 'Semua'].filter(Boolean).length;
+  const resetFilters = () => { setSearch(''); setFilterBayar('Semua'); setFilterCheckIn('Semua'); };
   const filtered = partisipan.filter(p =>
-    p.nama.toLowerCase().includes(search.toLowerCase()) ||
-    p.email.toLowerCase().includes(search.toLowerCase())
+    (search.trim() === '' || p.nama.toLowerCase().includes(search.trim().toLowerCase()) || p.email.toLowerCase().includes(search.trim().toLowerCase())) &&
+    (filterBayar === 'Semua' || p.statusBayar === filterBayar) &&
+    (filterCheckIn === 'Semua' || p.statusCheckIn === filterCheckIn)
   );
 
   const stats = {
@@ -1639,15 +1695,45 @@ function PartisipanEventPage({ state, initialEventId }) {
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="relative flex-1">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama atau email..." className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <button className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 shrink-0">
-              <Download size={15} /> Export CSV
-            </button>
+          <div className="flex items-center justify-end mb-3">
+            <ExportButtons toast={toast} label="partisipan event" />
           </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+            <button onClick={() => setFilterOpen(p => !p)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              <span className="flex items-center gap-2">
+                Filter Lanjutan
+                {activeFilterCount > 0 && <span className="bg-blue-100 text-blue-700 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{activeFilterCount}</span>}
+              </span>
+              <ChevronDown size={15} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {filterOpen && (
+              <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+                <div className="grid md:grid-cols-3 gap-3">
+                  <Field label="Cari Nama / Email">
+                    <FInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Nama atau email..." />
+                  </Field>
+                  <Field label="Status Bayar">
+                    <FSelect value={filterBayar} onChange={e => setFilterBayar(e.target.value)}>
+                      <option value="Semua">Semua</option>
+                      <option value="Lunas">Lunas</option>
+                      <option value="Gratis">Gratis</option>
+                      <option value="Pending">Pending</option>
+                    </FSelect>
+                  </Field>
+                  <Field label="Status Check-In">
+                    <FSelect value={filterCheckIn} onChange={e => setFilterCheckIn(e.target.value)}>
+                      <option value="Semua">Semua</option>
+                      <option value="Sudah">Sudah</option>
+                      <option value="Belum">Belum</option>
+                    </FSelect>
+                  </Field>
+                </div>
+                {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">Reset filter</button>}
+              </div>
+            )}
+          </div>
+
           {filtered.length === 0 ? (
             <EmptyState title="Tidak ada partisipan" desc={search ? 'Coba kata kunci lain' : 'Belum ada yang mendaftar untuk event ini'} />
           ) : (
@@ -1687,7 +1773,7 @@ function PartisipanEventPage({ state, initialEventId }) {
 // ═══════════════════════════════════════════════════════════════
 // PAGE: LIST KLUB
 // ═══════════════════════════════════════════════════════════════
-function ListKlubPage({ state }) {
+function ListKlubPage({ state, toast }) {
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterKota, setFilterKota] = useState('Semua');
@@ -1708,9 +1794,12 @@ function ListKlubPage({ state }) {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">List Klub</h1>
-        <p className="text-sm text-gray-500">Monitoring anggota per klub/komunitas</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">List Klub</h1>
+          <p className="text-sm text-gray-500">Monitoring anggota per klub/komunitas</p>
+        </div>
+        <ExportButtons toast={toast} label="klub" />
       </div>
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
@@ -1773,7 +1862,7 @@ function ListKlubPage({ state }) {
         <EmptyState title="Tidak ada klub" desc={activeFilterCount > 0 ? 'Tidak ada klub yang cocok dengan filter.' : 'Belum ada klub terdaftar'} />
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-          <table className="w-full min-w-[860px]">
+          <table className="w-full min-w-[1050px]">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Komunitas</th>
@@ -1782,6 +1871,8 @@ function ListKlubPage({ state }) {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Tipe</th>
                 <th className="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Member</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Dibuat</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Diupdate</th>
               </tr>
             </thead>
             <tbody>
@@ -1808,6 +1899,8 @@ function ListKlubPage({ state }) {
                     </div>
                   </td>
                   <td className="px-5 py-3"><StatusBadge status={klub.status} /></td>
+                  <td className="px-5 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(klub.createdAt)}</td>
+                  <td className="px-5 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(klub.updatedAt)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1827,8 +1920,15 @@ function PengajuanKlubPage({ state, dispatch, toast, loadData }) {
   const [catatanError, setCatatanError] = useState('');
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [detail, setDetail] = useState(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [search, setSearch] = useState('');
 
-  const filtered = state.pengajuanKlub.filter(p => filterStatus === 'Semua' || p.status === filterStatus);
+  const activeFilterCount = [filterStatus !== 'Semua', search.trim() !== ''].filter(Boolean).length;
+  const resetFilters = () => { setFilterStatus('Semua'); setSearch(''); };
+  const filtered = state.pengajuanKlub.filter(p =>
+    (filterStatus === 'Semua' || p.status === filterStatus) &&
+    (search.trim() === '' || p.namaKlub.toLowerCase().includes(search.trim().toLowerCase()))
+  );
   const pendingCount = state.pengajuanKlub.filter(p => p.status === 'Pending').length;
 
   const handleAction = async () => {
@@ -1929,20 +2029,51 @@ function PengajuanKlubPage({ state, dispatch, toast, loadData }) {
           <h1 className="text-xl font-bold text-gray-900">Pengajuan Klub</h1>
           <p className="text-sm text-gray-500">Review proposal komunitas baru dari pihak eksternal</p>
         </div>
-        {pendingCount > 0 && (
-          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm rounded-full font-medium">{pendingCount} menunggu review</span>
+        <div className="flex items-center gap-2">
+          {pendingCount > 0 && (
+            <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm rounded-full font-medium">{pendingCount} menunggu review</span>
+          )}
+          <ExportButtons toast={toast} label="pengajuan klub" />
+        </div>
+      </div>
+
+      <div className="flex gap-3 mb-5 flex-wrap">
+        <StatBox label="Total Pengajuan" value={state.pengajuanKlub.length} />
+        <StatBox label="Pending" value={state.pengajuanKlub.filter(p => p.status === 'Pending').length} />
+        <StatBox label="Approved" value={state.pengajuanKlub.filter(p => p.status === 'Approved').length} />
+        <StatBox label="Rejected" value={state.pengajuanKlub.filter(p => p.status === 'Rejected').length} />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+        <button onClick={() => setFilterOpen(p => !p)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <span className="flex items-center gap-2">
+            Filter Lanjutan
+            {activeFilterCount > 0 && <span className="bg-blue-100 text-blue-700 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{activeFilterCount}</span>}
+          </span>
+          <ChevronDown size={15} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {filterOpen && (
+          <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+            <div className="grid md:grid-cols-2 gap-3">
+              <Field label="Cari Nama Klub">
+                <FInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Nama klub..." />
+              </Field>
+              <Field label="Status">
+                <FSelect value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                  {['Semua', 'Pending', 'Approved', 'Rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+                </FSelect>
+              </Field>
+            </div>
+            {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">Reset filter</button>}
+          </div>
         )}
       </div>
-      <div className="flex gap-2 mb-4">
-        {['Semua', 'Pending', 'Approved', 'Rejected'].map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${filterStatus === s ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{s}</button>
-        ))}
-      </div>
+
       {filtered.length === 0 ? (
         <EmptyState title="Tidak ada pengajuan" desc={filterStatus !== 'Semua' ? `Tidak ada pengajuan dengan status ${filterStatus}` : 'Belum ada pengajuan masuk'} />
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-          <table className="w-full min-w-[860px]">
+          <table className="w-full min-w-[1050px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Nama Klub</th>
@@ -1950,6 +2081,8 @@ function PengajuanKlubPage({ state, dispatch, toast, loadData }) {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">PIC</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Tgl Ajuan</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Dibuat</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Diupdate</th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Aksi</th>
               </tr>
             </thead>
@@ -1961,6 +2094,8 @@ function PengajuanKlubPage({ state, dispatch, toast, loadData }) {
                   <td className="px-5 py-3 text-gray-500 text-sm">{p.namaPIC}</td>
                   <td className="px-5 py-3 text-gray-500 text-sm whitespace-nowrap">{fmtDate(p.tanggalAjuan)}</td>
                   <td className="px-5 py-3"><StatusBadge status={p.status} /></td>
+                  <td className="px-5 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(p.createdAt)}</td>
+                  <td className="px-5 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(p.updatedAt)}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-1 justify-end">
                       <button onClick={() => setDetail(p)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Detail"><Eye size={14} /></button>
@@ -2139,7 +2274,14 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
     return '—';
   };
 
-  const filtered = state.stories.filter(s => filterStatus === 'Semua' || s.status === filterStatus);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const activeFilterCount = [filterStatus !== 'Semua', search.trim() !== ''].filter(Boolean).length;
+  const resetFilters = () => { setFilterStatus('Semua'); setSearch(''); };
+  const filtered = state.stories.filter(s =>
+    (filterStatus === 'Semua' || s.status === filterStatus) &&
+    (search.trim() === '' || s.judul.toLowerCase().includes(search.trim().toLowerCase()) || (s.penulis || '').toLowerCase().includes(search.trim().toLowerCase()))
+  );
 
   return (
     <div>
@@ -2152,22 +2294,43 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
           {pendingCount > 0 && (
             <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm rounded-full font-medium">{pendingCount} menunggu review</span>
           )}
+          <ExportButtons toast={toast} label="stories" />
           <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
             <Plus size={15} /> Tambah Story
           </button>
         </div>
       </div>
 
-      {/* Filter status */}
-      <div className="flex gap-2 mb-5 flex-wrap">
-        {['Semua', 'Draft', 'Pending Approval', 'Published', 'Rejected'].map(s => (
-          <button
-            key={s}
-            onClick={() => setFilterStatus(s)}
-            className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${filterStatus === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'}`}
-          >{s}</button>
-        ))}
-        <span className="ml-auto text-xs text-gray-400 self-center">{filtered.length} story</span>
+      <div className="flex gap-3 mb-5 flex-wrap">
+        <StatBox label="Total Story" value={state.stories.length} />
+        <StatBox label="Published" value={state.stories.filter(s => s.status === 'Published').length} />
+        <StatBox label="Pending Approval" value={state.stories.filter(s => s.status === 'Pending Approval').length} />
+        <StatBox label="Draft" value={state.stories.filter(s => s.status === 'Draft').length} />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+        <button onClick={() => setFilterOpen(p => !p)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <span className="flex items-center gap-2">
+            Filter Lanjutan
+            {activeFilterCount > 0 && <span className="bg-blue-100 text-blue-700 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{activeFilterCount}</span>}
+          </span>
+          <ChevronDown size={15} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {filterOpen && (
+          <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+            <div className="grid md:grid-cols-2 gap-3">
+              <Field label="Cari Judul / Penulis">
+                <FInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Judul atau nama penulis..." />
+              </Field>
+              <Field label="Status">
+                <FSelect value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                  {['Semua', 'Draft', 'Pending Approval', 'Published', 'Rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+                </FSelect>
+              </Field>
+            </div>
+            {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">Reset filter</button>}
+          </div>
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -2178,7 +2341,7 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
         />
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-          <table className="w-full text-sm min-w-[900px]">
+          <table className="w-full text-sm min-w-[1150px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Judul</th>
@@ -2186,6 +2349,8 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Relasi</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Periode Tayang</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dibuat</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Diupdate</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -2212,6 +2377,8 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
                     {story.tanggalPublish ? fmtDate(story.tanggalPublish) : '—'}
                     {story.tayangSelesai ? ` s/d ${fmtDate(story.tayangSelesai)}` : ''}
                   </td>
+                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(story.createdAt)}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(story.updatedAt)}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-end">
                       {story.status === 'Pending Approval' && (
@@ -2696,8 +2863,15 @@ function ReviewVerificationPage({ state, dispatch, toast, loadData }) {
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [rejectModal, setRejectModal] = useState(null); // review object being rejected
   const [catatan, setCatatan] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [search, setSearch] = useState('');
 
-  const filtered = state.reviews.filter(r => filterStatus === 'Semua' || r.status === filterStatus);
+  const activeFilterCount = [filterStatus !== 'Semua', search.trim() !== ''].filter(Boolean).length;
+  const resetFilters = () => { setFilterStatus('Semua'); setSearch(''); };
+  const filtered = state.reviews.filter(r =>
+    (filterStatus === 'Semua' || r.status === filterStatus) &&
+    (search.trim() === '' || r.userName.toLowerCase().includes(search.trim().toLowerCase()) || r.eventNama.toLowerCase().includes(search.trim().toLowerCase()))
+  );
   const pendingCount = state.reviews.filter(r => r.status === 'Pending').length;
 
   const handleApprove = async (review) => {
@@ -2725,15 +2899,39 @@ function ReviewVerificationPage({ state, dispatch, toast, loadData }) {
             {pendingCount > 0 ? <span className="text-yellow-600 font-medium">{pendingCount} review menunggu persetujuan</span> : 'Semua review sudah diverifikasi'}
           </p>
         </div>
-        <select
-          value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value)}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {['Semua', 'Pending', 'Approved', 'Rejected'].map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+        <ExportButtons toast={toast} label="review" />
+      </div>
+
+      <div className="flex gap-3 mb-5 flex-wrap">
+        <StatBox label="Total Review" value={state.reviews.length} />
+        <StatBox label="Pending" value={state.reviews.filter(r => r.status === 'Pending').length} />
+        <StatBox label="Approved" value={state.reviews.filter(r => r.status === 'Approved').length} />
+        <StatBox label="Rejected" value={state.reviews.filter(r => r.status === 'Rejected').length} />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+        <button onClick={() => setFilterOpen(p => !p)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <span className="flex items-center gap-2">
+            Filter Lanjutan
+            {activeFilterCount > 0 && <span className="bg-blue-100 text-blue-700 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{activeFilterCount}</span>}
+          </span>
+          <ChevronDown size={15} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {filterOpen && (
+          <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+            <div className="grid md:grid-cols-2 gap-3">
+              <Field label="Cari Peserta / Event">
+                <FInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Nama peserta atau event..." />
+              </Field>
+              <Field label="Status">
+                <FSelect value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                  {['Semua', 'Pending', 'Approved', 'Rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+                </FSelect>
+              </Field>
+            </div>
+            {activeFilterCount > 0 && <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline">Reset filter</button>}
+          </div>
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -2908,6 +3106,14 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
             {newCount > 0 ? <span className="text-yellow-600 font-medium">{newCount} pengajuan baru</span> : 'Semua pengajuan sudah ditindaklanjuti'}
           </p>
         </div>
+        <ExportButtons toast={toast} label="pengajuan kemitraan" />
+      </div>
+
+      <div className="flex gap-3 mb-5 flex-wrap">
+        <StatBox label={`Total ${filterTipe}`} value={state.partnershipLeads.filter(l => l.tipe === filterTipe).length} />
+        <StatBox label="Pending Review" value={state.partnershipLeads.filter(l => l.tipe === filterTipe && l.status === 'Pending Review').length} />
+        <StatBox label="Contacted" value={state.partnershipLeads.filter(l => l.tipe === filterTipe && l.status === 'Contacted').length} />
+        <StatBox label="Rejected" value={state.partnershipLeads.filter(l => l.tipe === filterTipe && l.status === 'Rejected').length} />
       </div>
 
       <div className="flex gap-2 mb-3 flex-wrap">
@@ -2965,7 +3171,7 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
         <EmptyState title="Belum ada pengajuan" desc="Pengajuan EO/Sponsor dari web customer akan muncul di sini." />
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
-          <table className="w-full text-sm min-w-[980px]">
+          <table className="w-full text-sm min-w-[1250px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipe</th>
@@ -2979,6 +3185,8 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Kebutuhan</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tanggal</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Dibuat</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Diupdate</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
               </tr>
             </thead>
@@ -3000,12 +3208,14 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
                   <td className="px-4 py-4">
                     <p className="text-gray-600 max-w-45 line-clamp-2">{lead.kebutuhan}</p>
                   </td>
-                  <td className="px-4 py-4 text-gray-500 whitespace-nowrap">{lead.tanggalAjuan}</td>
+                  <td className="px-4 py-4 text-gray-500 whitespace-nowrap">{lead.tanggalAjuan ? fmtDate(lead.tanggalAjuan.slice(0, 10)) : '—'}</td>
                   <td className="px-4 py-4 text-center">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_LEAD_COLORS[lead.status] || 'bg-gray-100 text-gray-600'}`}>
                       {lead.status}
                     </span>
                   </td>
+                  <td className="px-4 py-4 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(lead.createdAt)}</td>
+                  <td className="px-4 py-4 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(lead.updatedAt)}</td>
                   <td className="px-4 py-4 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
