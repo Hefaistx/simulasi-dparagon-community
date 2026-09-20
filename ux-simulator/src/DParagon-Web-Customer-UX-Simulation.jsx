@@ -2203,8 +2203,11 @@ function EventsSection({ state, dispatch, loadData, subPage, subParam, onNav, to
 // ═══════════════════════════════════════════════════════════════
 // SECTION: CLUBS
 // ═══════════════════════════════════════════════════════════════
-function ClubsSection({ state, subPage, subParam, onNav, toast }) {
+const CLUB_CURRENT_USER = { id: 1, name: "Budi Santoso", email: "budi@email.com" };
+
+function ClubsSection({ state, subPage, subParam, onNav, toast, loadData }) {
   const [requestModal, setRequestModal] = useState(false);
+  const [joining, setJoining] = useState(false);
   const [reqForm, setReqForm] = useState({
     namaKlub: "",
     deskripsi: "",
@@ -2271,6 +2274,37 @@ function ClubsSection({ state, subPage, subParam, onNav, toast }) {
     setRequestModal(true);
   };
 
+  const handleJoinClub = async (klub) => {
+    setJoining(true);
+    try {
+      await apiCall("/api/community-members", "POST", {
+        community_id: klub.id,
+        user_id: CLUB_CURRENT_USER.id,
+      });
+      await loadData();
+      toast("success", `Berhasil gabung ke ${klub.nama}!`);
+    } catch (e) {
+      toast("info", "Gagal gabung komunitas. Coba lagi.");
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const handleLeaveClub = async (membership) => {
+    setJoining(true);
+    try {
+      await apiCall(`/api/community-members?id=${membership.id}`, "PATCH", {
+        status: "left",
+      });
+      await loadData();
+      toast("success", "Kamu keluar dari komunitas ini.");
+    } catch (e) {
+      toast("info", "Gagal keluar dari komunitas. Coba lagi.");
+    } finally {
+      setJoining(false);
+    }
+  };
+
   if (subPage === "detail") {
     const klub = state.komunitas.find((k) => k.id === subParam);
     if (!klub)
@@ -2279,6 +2313,10 @@ function ClubsSection({ state, subPage, subParam, onNav, toast }) {
           Komunitas tidak ditemukan
         </div>
       );
+    const membership = state.communityMembers?.find(
+      (m) => m.communityId === klub.id && m.userEmail === CLUB_CURRENT_USER.email,
+    );
+    const isMember = !!membership;
     const clubEvents = state.events.filter((ev) => ev.communityId === klub.id);
     const upcomingEvents = clubEvents
       .filter((ev) => ev.stage !== "Recap Published")
@@ -2393,23 +2431,57 @@ function ClubsSection({ state, subPage, subParam, onNav, toast }) {
           </div>
           <div>
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <h3 className="font-semibold text-gray-900 mb-4">Bergabung</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Klik tombol di bawah untuk langsung bergabung ke grup WhatsApp
-                komunitas ini.
-              </p>
-              <a
-                href={klub.linkWA}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  toast("success", `Membuka grup WhatsApp ${klub.nama}`);
-                }}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors"
-              >
-                <ExternalLink size={16} /> Gabung via WhatsApp
-              </a>
+              {isMember ? (
+                <>
+                  <div className="flex items-center gap-2 mb-4">
+                    <CheckCircle size={18} className="text-green-600" />
+                    <h3 className="font-semibold text-gray-900">
+                      Kamu member klub ini
+                    </h3>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Gabung ke grup WhatsApp untuk ikut diskusi dan info
+                    kegiatan terbaru.
+                  </p>
+                  <a
+                    href={klub.linkWA}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toast("success", `Membuka grup WhatsApp ${klub.nama}`);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors"
+                  >
+                    <ExternalLink size={16} /> Buka Grup WhatsApp
+                  </a>
+                  <button
+                    onClick={() => handleLeaveClub(membership)}
+                    disabled={joining}
+                    className="w-full text-center text-xs text-gray-400 hover:text-red-500 mt-3 disabled:opacity-50"
+                  >
+                    Keluar dari komunitas
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h3 className="font-semibold text-gray-900 mb-4">
+                    Bergabung
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Klik tombol di bawah untuk gabung ke komunitas ini. Kamu
+                    akan tercatat sebagai member dan bisa akses grup
+                    WhatsApp-nya.
+                  </p>
+                  <button
+                    onClick={() => handleJoinClub(klub)}
+                    disabled={joining}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
+                  >
+                    {joining ? "Memproses..." : "Gabung ke Komunitas"}
+                  </button>
+                </>
+              )}
             </div>
             <div className="bg-white rounded-2xl border border-gray-200 p-5 mt-4">
               <h3 className="font-semibold text-gray-900 mb-3">
@@ -2579,7 +2651,11 @@ function ClubsSection({ state, subPage, subParam, onNav, toast }) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filtered.map((klub) => (
+          {filtered.map((klub) => {
+            const isMember = state.communityMembers?.some(
+              (m) => m.communityId === klub.id && m.userEmail === CLUB_CURRENT_USER.email,
+            );
+            return (
             <div
               key={klub.id}
               onClick={() => onNav("clubs", "detail", klub.id)}
@@ -2599,6 +2675,11 @@ function ClubsSection({ state, subPage, subParam, onNav, toast }) {
                     >
                       {klub.tipe}
                     </span>
+                    {isMember && (
+                      <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium flex items-center gap-1">
+                        <CheckCircle size={10} /> Member
+                      </span>
+                    )}
                   </div>
                   <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
                     {klub.nama}
@@ -2614,7 +2695,8 @@ function ClubsSection({ state, subPage, subParam, onNav, toast }) {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -3418,7 +3500,9 @@ export default function App() {
           kategoriKomunitas: data.kategoriKomunitas.map(c => ({ id: c.id, nama: c.name })),
           myTickets,
           communityMembers: (data.communityMembers || []).map(m => ({
+            id: m.id,
             communityId: m.community_id,
+            userId: m.user_id,
             userEmail: m.user_email,
           })),
         },
