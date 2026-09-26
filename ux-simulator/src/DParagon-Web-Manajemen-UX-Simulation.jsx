@@ -176,6 +176,7 @@ const fromApiStory = s => ({
   tayangSelesai: s.publish_end_date ?? '',
   submitterEmail: s.submitter_email ?? '',
   submitterPhone: s.submitter_phone ?? '',
+  origin: s.origin === 'external' ? 'Eksternal' : 'Internal',
   status: s.status === 'published' ? 'Published' : s.status === 'pending' ? 'Pending Approval' : s.status === 'rejected' ? 'Rejected' : 'Draft',
   images: s.images ?? [],
   createdAt: s.created_at, updatedAt: s.updated_at,
@@ -2247,7 +2248,9 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
       relatedKomunitasId: form.relatedKomunitasId ? Number(form.relatedKomunitasId) : null,
     };
     if (formModal.mode === 'add') {
-      await apiCall(`/api/stories`, 'POST', toApiStory(data)); await loadData();
+      // Story yang dibuat langsung dari admin selalu berasal internal (tim
+      // D'Paragon sendiri), beda dari yang masuk lewat form pengajuan publik.
+      await apiCall(`/api/stories`, 'POST', { ...toApiStory(data), origin: 'internal' }); await loadData();
       toast('success', 'Story berhasil ditambahkan!');
     } else {
       await apiCall(`/api/stories?id=${formModal.story.id}`, 'PATCH', toApiStory(data)); await loadData();
@@ -2278,6 +2281,9 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
   const [search, setSearch] = useState('');
   const activeFilterCount = [filterStatus !== 'Semua', search.trim() !== ''].filter(Boolean).length;
   const resetFilters = () => { setFilterStatus('Semua'); setSearch(''); };
+  // Story eksternal (dari form pengajuan publik) & internal (dibuat admin
+  // sendiri) punya pilihan status yang berbeda — lihat Field "Status" di bawah.
+  const isExternalStory = formModal?.mode === 'edit' && formModal.story.origin === 'Eksternal';
   const filtered = state.stories.filter(s =>
     (filterStatus === 'Semua' || s.status === filterStatus) &&
     (search.trim() === '' || s.judul.toLowerCase().includes(search.trim().toLowerCase()) || (s.penulis || '').toLowerCase().includes(search.trim().toLowerCase()))
@@ -2341,10 +2347,11 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
         />
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-          <table className="w-full text-sm min-w-[1150px]">
+          <table className="w-full text-sm min-w-[1250px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Judul</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Asal</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tipe</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Relasi</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
@@ -2358,13 +2365,13 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
               {filtered.map(story => (
                 <tr key={story.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium text-gray-900 max-w-xs truncate">{story.judul}</div>
-                      {story.submitterEmail && (
-                        <span className="shrink-0 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">Dari Web</span>
-                      )}
-                    </div>
+                    <div className="font-medium text-gray-900 max-w-xs truncate">{story.judul}</div>
                     <div className="text-xs text-gray-400 mt-0.5">{story.kategori}{story.tags ? ` · ${story.tags}` : ''}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${story.origin === 'Eksternal' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {story.origin}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${story.tipeRelasi === 'Event' ? 'bg-purple-100 text-purple-700' : story.tipeRelasi === 'Komunitas' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -2480,17 +2487,25 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
 
           <Field label="Status">
             <FSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-              {form.status === 'Pending Approval' && <option value="Pending Approval">Pending Approval (dari pengajuan web)</option>}
-              <option value="Draft">Draft</option>
-              <option value="Published">Published</option>
-              <option value="Rejected">Rejected</option>
+              {isExternalStory ? (
+                <>
+                  {form.status === 'Pending Approval' && <option value="Pending Approval">Pending Approval (dari pengajuan web)</option>}
+                  <option value="Published">Published</option>
+                  <option value="Rejected">Rejected</option>
+                </>
+              ) : (
+                <>
+                  <option value="Draft">Draft</option>
+                  <option value="Published">Published</option>
+                </>
+              )}
             </FSelect>
             {form.status === 'Pending Approval' && (
               <p className="mt-1.5 text-xs text-gray-400">Pilih Published atau Rejected untuk menindaklanjuti pengajuan ini.</p>
             )}
           </Field>
 
-          {formModal?.story && (formModal.story.submitterEmail || formModal.story.submitterPhone) && (
+          {isExternalStory && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5">
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Kontak Pengaju (via Ajukan Story)</p>
               <p className="text-sm text-blue-700">{formModal.story.submitterEmail || '-'} · {formModal.story.submitterPhone || '-'}</p>

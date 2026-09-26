@@ -19,17 +19,17 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const rows = statusFilter
-        ? await db`SELECT * FROM organizers WHERE status = ${statusFilter} ORDER BY id`
-        : await db`SELECT * FROM organizers ORDER BY id`;
+        ? await db`SELECT o.*, u.name AS pengaju_name FROM organizers o LEFT JOIN users u ON u.id = o.user_id WHERE o.status = ${statusFilter} ORDER BY o.id`
+        : await db`SELECT o.*, u.name AS pengaju_name FROM organizers o LEFT JOIN users u ON u.id = o.user_id ORDER BY o.id`;
       return res.status(200).json(rows);
     }
 
     if (req.method === 'POST') {
-      const { name, description, email, phone, website, pic, notes, submitted_at, event_date, event_date_end, event_description, attachment, attachment_name } = req.body;
+      const { name, description, email, phone, website, pic, notes, submitted_at, event_date, event_date_end, event_description, attachment, attachment_name, user_id } = req.body;
       if (!name) return res.status(400).json({ error: 'name is required' });
       const [row] = await db`
-        INSERT INTO organizers (name, description, email, phone, website, pic, status, notes, submitted_at, event_date, event_date_end, event_description, attachment, attachment_name)
-        VALUES (${name}, ${description ?? null}, ${email ?? null}, ${phone ?? null}, ${website ?? null}, ${pic ?? null}, 'pending', ${notes ?? null}, ${submitted_at ?? null}, ${event_date ?? null}, ${event_date_end ?? null}, ${event_description ?? null}, ${attachment ?? null}, ${attachment_name ?? null})
+        INSERT INTO organizers (name, description, email, phone, website, pic, status, notes, submitted_at, event_date, event_date_end, event_description, attachment, attachment_name, user_id)
+        VALUES (${name}, ${description ?? null}, ${email ?? null}, ${phone ?? null}, ${website ?? null}, ${pic ?? null}, 'pending', ${notes ?? null}, ${submitted_at ?? null}, ${event_date ?? null}, ${event_date_end ?? null}, ${event_description ?? null}, ${attachment ?? null}, ${attachment_name ?? null}, ${user_id ?? null})
         RETURNING *`;
       return res.status(201).json(row);
     }

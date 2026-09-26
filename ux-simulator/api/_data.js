@@ -47,21 +47,25 @@ export default async function handler(req, res) {
 
       db`SELECT c.*,
            cc.name AS kategori_name,
+           u.name AS pengaju_name,
            (SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id AND cm.status = 'active') AS jumlah_member
          FROM communities c
          LEFT JOIN community_categories cc ON cc.id = c.category_id
+         LEFT JOIN users u ON u.id = c.user_id
          ORDER BY c.id`,
 
-      db`SELECT * FROM organizers ORDER BY id`,
+      db`SELECT o.*, u.name AS pengaju_name FROM organizers o LEFT JOIN users u ON u.id = o.user_id ORDER BY o.id`,
 
-      db`SELECT * FROM sponsors ORDER BY id`,
+      db`SELECT s.*, u.name AS pengaju_name FROM sponsors s LEFT JOIN users u ON u.id = s.user_id ORDER BY s.id`,
 
       db`SELECT s.*,
            e.name AS event_name,
-           co.name AS community_name
+           co.name AS community_name,
+           u.name AS pengaju_name
          FROM stories s
          LEFT JOIN events e ON e.id = s.event_id
          LEFT JOIN communities co ON co.id = s.community_id
+         LEFT JOIN users u ON u.id = s.user_id
          ORDER BY s.id`,
 
       db`SELECT r.*,

@@ -43,6 +43,7 @@ const EMPTY_STATE = {
   events: [],
   komunitas: [],
   myTickets: [],
+  pengajuanSaya: [],
   reviews: [],
   headBanners: [],
   kategoriKomunitas: [],
@@ -282,6 +283,11 @@ function StatusBadge({ status }) {
     Lunas: "bg-green-100 text-green-700",
     Gratis: "bg-blue-100 text-blue-700",
     Pending: "bg-yellow-100 text-yellow-700",
+    Diajukan: "bg-yellow-100 text-yellow-700",
+    Disetujui: "bg-green-100 text-green-700",
+    Dipublish: "bg-green-100 text-green-700",
+    "Sedang Dihubungi Tim": "bg-blue-100 text-blue-700",
+    Ditolak: "bg-red-100 text-red-600",
   };
   return (
     <span
@@ -378,8 +384,27 @@ function QRCodeVisual({ value }) {
 // ═══════════════════════════════════════════════════════════════
 // TOPNAV
 // ═══════════════════════════════════════════════════════════════
-function TopNav({ currentSection, onNav, ticketCount }) {
+function TopNav({ currentSection, onNav, ticketCount, toast }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const handleClickOutside = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [profileOpen]);
+
+  const handleLogout = () => {
+    setProfileOpen(false);
+    toast?.("info", "Logout akan tersedia setelah integrasi akun dparagon.com.");
+  };
+
   const navItems = [
     { key: "home", label: "Community" },
     { key: "stories", label: "Stories" },
@@ -424,13 +449,36 @@ function TopNav({ currentSection, onNav, ticketCount }) {
         </div>
 
         {/* Simulated user */}
-        <div className="hidden md:flex items-center gap-3">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
+        <div className="hidden md:block relative" ref={profileRef}>
+          <button
+            onClick={() => setProfileOpen((p) => !p)}
+            className="flex items-center gap-2 text-sm text-gray-700 rounded-lg px-1.5 py-1 hover:bg-gray-50"
+          >
             <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">
               BS
             </div>
             <span className="font-medium">Budi Santoso</span>
-          </div>
+          </button>
+          {profileOpen && (
+            <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-1.5 z-50">
+              <button
+                onClick={() => {
+                  setProfileOpen(false);
+                  onNav("status-pengajuan");
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Status Pengajuan
+              </button>
+              <div className="border-t border-gray-100 my-1" />
+              <button
+                onClick={handleLogout}
+                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+              >
+                Keluar
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Mobile menu button */}
@@ -462,6 +510,24 @@ function TopNav({ currentSection, onNav, ticketCount }) {
             </div>
             Budi Santoso
           </div>
+          <button
+            onClick={() => {
+              onNav("status-pengajuan");
+              setMenuOpen(false);
+            }}
+            className={`w-full text-left px-3 py-2.5 text-sm rounded-lg font-medium mt-1 ${currentSection === "status-pengajuan" ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-50"}`}
+          >
+            Status Pengajuan
+          </button>
+          <button
+            onClick={() => {
+              setMenuOpen(false);
+              handleLogout();
+            }}
+            className="w-full text-left px-3 py-2.5 text-sm rounded-lg font-medium mt-1 text-red-600 hover:bg-red-50"
+          >
+            Keluar
+          </button>
         </div>
       )}
     </nav>
@@ -892,6 +958,8 @@ function StoriesSection({ state, subPage, subParam, onNav, toast, loadData }) {
         status: "pending",
         submitter_email: STORY_SUBMIT_CURRENT_USER.email,
         submitter_phone: STORY_SUBMIT_CURRENT_USER.phone,
+        origin: "external",
+        user_id: CLUB_CURRENT_USER.id,
       });
       await loadData();
       setSubmitDone(true);
@@ -2250,6 +2318,7 @@ function ClubsSection({ state, subPage, subParam, onNav, toast, loadData }) {
         pic_email: reqForm.emailPIC,
         pic_phone: reqForm.noHpPIC,
         submitted_at: new Date().toISOString().slice(0, 10),
+        user_id: CLUB_CURRENT_USER.id,
       });
       setReqSuccess(true);
       toast("success", "Pengajuan komunitas berhasil dikirim!");
@@ -2918,6 +2987,7 @@ function CollaborateSection({ toast }) {
           attachment: form.attachment || null,
           attachment_name: form.attachmentName || null,
           submitted_at: new Date().toISOString().slice(0, 10),
+          user_id: CLUB_CURRENT_USER.id,
         });
       } else {
         await apiCall("/api/sponsors", "POST", {
@@ -2935,6 +3005,7 @@ function CollaborateSection({ toast }) {
           attachment: form.attachment || null,
           attachment_name: form.attachmentName || null,
           submitted_at: new Date().toISOString().slice(0, 10),
+          user_id: CLUB_CURRENT_USER.id,
         });
       }
       setSubmitted(true);
@@ -3455,6 +3526,117 @@ function MyPassSection({ state, subPage, subParam, onNav }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// SECTION: STATUS PENGAJUAN
+// ═══════════════════════════════════════════════════════════════
+const PENGAJUAN_TYPE_STYLE = {
+  Klub: "bg-indigo-100 text-indigo-700",
+  Story: "bg-emerald-100 text-emerald-700",
+  EO: "bg-purple-100 text-purple-700",
+  Sponsor: "bg-pink-100 text-pink-700",
+};
+
+function PengajuanDetail({ item }) {
+  const r = item.raw;
+  if (item.tipe === "Klub") {
+    return (
+      <div className="space-y-3 text-sm">
+        <div><span className="text-gray-400">Nama Komunitas</span><p className="font-medium text-gray-900">{r.name}</p></div>
+        {r.description && <div><span className="text-gray-400">Deskripsi</span><p className="text-gray-700">{r.description}</p></div>}
+        {r.notes && <div><span className="text-gray-400">Catatan Admin</span><p className="text-gray-700">{r.notes}</p></div>}
+      </div>
+    );
+  }
+  if (item.tipe === "Story") {
+    return (
+      <div className="space-y-3 text-sm">
+        <div><span className="text-gray-400">Judul</span><p className="font-medium text-gray-900">{r.title}</p></div>
+        {r.content && <div><span className="text-gray-400">Isi</span><p className="text-gray-700 line-clamp-6">{r.content}</p></div>}
+      </div>
+    );
+  }
+  // EO / Sponsor
+  return (
+    <div className="space-y-3 text-sm">
+      <div><span className="text-gray-400">Organisasi</span><p className="font-medium text-gray-900">{r.name}</p></div>
+      {r.pic && <div><span className="text-gray-400">PIC</span><p className="text-gray-700">{r.pic}</p></div>}
+      {r.description && <div><span className="text-gray-400">Kebutuhan</span><p className="text-gray-700">{r.description}</p></div>}
+      {r.notes && <div><span className="text-gray-400">Catatan Admin</span><p className="text-gray-700">{r.notes}</p></div>}
+    </div>
+  );
+}
+
+function StatusPengajuanSection({ state }) {
+  const [detail, setDetail] = useState(null);
+  const items = state.pengajuanSaya || [];
+
+  return (
+    <div className="max-w-3xl mx-auto py-8 px-4">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Status Pengajuan</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Pantau progres semua pengajuan yang pernah kamu kirim ke D'Paragon Community
+        </p>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="text-5xl mb-4">📋</div>
+          <p className="font-medium text-gray-700 mb-1">Belum ada pengajuan</p>
+          <p className="text-sm text-gray-400">
+            Ajukan komunitas, story, EO, atau sponsorship — statusnya bisa dipantau di sini.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {items.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setDetail(item)}
+              className="w-full text-left bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all flex items-center justify-between gap-3"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PENGAJUAN_TYPE_STYLE[item.tipe]}`}>
+                    {item.tipe}
+                  </span>
+                  <StatusBadge status={item.statusLabel} />
+                </div>
+                <p className="font-medium text-gray-900 truncate">{item.judul}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {item.tanggal ? fmtShortDate(item.tanggal) : "-"}
+                </p>
+              </div>
+              <ChevronRight size={18} className="text-gray-300 flex-shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <Modal open={!!detail} onClose={() => setDetail(null)} size="md">
+        {detail && (
+          <div>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PENGAJUAN_TYPE_STYLE[detail.tipe]}`}>
+                  {detail.tipe}
+                </span>
+                <StatusBadge status={detail.statusLabel} />
+              </div>
+              <button onClick={() => setDetail(null)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5">
+              <PengajuanDetail item={detail} />
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // ROOT APP
 // ═══════════════════════════════════════════════════════════════
 let _toastId = 0;
@@ -3489,6 +3671,58 @@ export default function App() {
         myTickets = tickets.map(fromApiTicket);
       } catch (_) {}
 
+      // Status Pengajuan (dashboard user): gabungan semua pengajuan milik akun
+      // yang login, lintas Klub/Story/EO/Sponsor. Sengaja dihitung dari data
+      // mentah (belum difilter status seperti komunitas/stories publik di atas),
+      // karena pengajuan yang masih pending/ditolak justru yang perlu terlihat di sini.
+      const myUserId = CLUB_CURRENT_USER.id;
+      const KLUB_STATUS_LABEL = { pending: 'Diajukan', active: 'Disetujui', inactive: 'Disetujui', rejected: 'Ditolak' };
+      const STORY_STATUS_LABEL = { pending: 'Diajukan', published: 'Dipublish', rejected: 'Ditolak' };
+      const LEAD_STATUS_LABEL = { pending: 'Diajukan', contacted: 'Sedang Dihubungi Tim', rejected: 'Ditolak' };
+
+      const pengajuanKlub = data.komunitas
+        .filter((c) => c.user_id === myUserId)
+        .map((c) => ({
+          key: `klub-${c.id}`,
+          tipe: 'Klub',
+          judul: c.name,
+          statusLabel: KLUB_STATUS_LABEL[c.status] ?? c.status,
+          tanggal: c.submitted_at || c.created_at,
+          raw: c,
+        }));
+      const pengajuanStory = data.stories
+        .filter((s) => s.user_id === myUserId && s.origin === 'external')
+        .map((s) => ({
+          key: `story-${s.id}`,
+          tipe: 'Story',
+          judul: s.title,
+          statusLabel: STORY_STATUS_LABEL[s.status] ?? s.status,
+          tanggal: s.created_at,
+          raw: s,
+        }));
+      const pengajuanEO = (data.organizers || [])
+        .filter((o) => o.user_id === myUserId)
+        .map((o) => ({
+          key: `eo-${o.id}`,
+          tipe: 'EO',
+          judul: o.name,
+          statusLabel: LEAD_STATUS_LABEL[o.status] ?? o.status,
+          tanggal: o.submitted_at || o.created_at,
+          raw: o,
+        }));
+      const pengajuanSponsor = (data.sponsors || [])
+        .filter((s) => s.user_id === myUserId)
+        .map((s) => ({
+          key: `sponsor-${s.id}`,
+          tipe: 'Sponsor',
+          judul: s.name,
+          statusLabel: LEAD_STATUS_LABEL[s.status] ?? s.status,
+          tanggal: s.submitted_at || s.created_at,
+          raw: s,
+        }));
+      const pengajuanSaya = [...pengajuanKlub, ...pengajuanStory, ...pengajuanEO, ...pengajuanSponsor]
+        .sort((a, b) => new Date(b.tanggal || 0) - new Date(a.tanggal || 0));
+
       dispatch({
         type: 'LOAD_DATA',
         payload: {
@@ -3499,6 +3733,7 @@ export default function App() {
           headBanners: activeBanners.map(fromApiBanner),
           kategoriKomunitas: data.kategoriKomunitas.map(c => ({ id: c.id, nama: c.name })),
           myTickets,
+          pengajuanSaya,
           communityMembers: (data.communityMembers || []).map(m => ({
             id: m.id,
             communityId: m.community_id,
@@ -3544,6 +3779,7 @@ export default function App() {
     clubs: <ClubsSection {...sharedProps} />,
     collaborate: <CollaborateSection {...sharedProps} />,
     "my-pass": <MyPassSection {...sharedProps} />,
+    "status-pengajuan": <StatusPengajuanSection {...sharedProps} />,
   };
 
   return (
@@ -3557,6 +3793,7 @@ export default function App() {
         currentSection={nav.section}
         onNav={(s) => handleNav(s)}
         ticketCount={state.myTickets.filter((t) => t.status === "Aktif").length}
+        toast={addToast}
       />
       <div className="pb-12">
         {sections[nav.section] ?? (

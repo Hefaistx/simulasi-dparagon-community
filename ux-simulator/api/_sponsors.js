@@ -19,17 +19,17 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const rows = statusFilter
-        ? await db`SELECT * FROM sponsors WHERE status = ${statusFilter} ORDER BY id`
-        : await db`SELECT * FROM sponsors ORDER BY id`;
+        ? await db`SELECT s.*, u.name AS pengaju_name FROM sponsors s LEFT JOIN users u ON u.id = s.user_id WHERE s.status = ${statusFilter} ORDER BY s.id`
+        : await db`SELECT s.*, u.name AS pengaju_name FROM sponsors s LEFT JOIN users u ON u.id = s.user_id ORDER BY s.id`;
       return res.status(200).json(rows);
     }
 
     if (req.method === 'POST') {
-      const { name, description, email, phone, website, pic, notes, submitted_at, sub_type, sponsorship_start, sponsorship_end, benefit, event_description, attachment, attachment_name } = req.body;
+      const { name, description, email, phone, website, pic, notes, submitted_at, sub_type, sponsorship_start, sponsorship_end, benefit, event_description, attachment, attachment_name, user_id } = req.body;
       if (!name) return res.status(400).json({ error: 'name is required' });
       const [row] = await db`
-        INSERT INTO sponsors (name, description, email, phone, website, pic, status, notes, submitted_at, sub_type, sponsorship_start, sponsorship_end, benefit, event_description, attachment, attachment_name)
-        VALUES (${name}, ${description ?? null}, ${email ?? null}, ${phone ?? null}, ${website ?? null}, ${pic ?? null}, 'pending', ${notes ?? null}, ${submitted_at ?? null}, ${sub_type ?? 'pengajuan'}, ${sponsorship_start ?? null}, ${sponsorship_end ?? null}, ${benefit ?? null}, ${event_description ?? null}, ${attachment ?? null}, ${attachment_name ?? null})
+        INSERT INTO sponsors (name, description, email, phone, website, pic, status, notes, submitted_at, sub_type, sponsorship_start, sponsorship_end, benefit, event_description, attachment, attachment_name, user_id)
+        VALUES (${name}, ${description ?? null}, ${email ?? null}, ${phone ?? null}, ${website ?? null}, ${pic ?? null}, 'pending', ${notes ?? null}, ${submitted_at ?? null}, ${sub_type ?? 'pengajuan'}, ${sponsorship_start ?? null}, ${sponsorship_end ?? null}, ${benefit ?? null}, ${event_description ?? null}, ${attachment ?? null}, ${attachment_name ?? null}, ${user_id ?? null})
         RETURNING *`;
       return res.status(201).json(row);
     }

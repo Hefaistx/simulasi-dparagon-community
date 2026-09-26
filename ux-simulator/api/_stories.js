@@ -19,24 +19,24 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       if (id) {
-        const [story] = await db`SELECT * FROM stories WHERE id = ${Number(id)}`;
+        const [story] = await db`SELECT s.*, u.name AS pengaju_name FROM stories s LEFT JOIN users u ON u.id = s.user_id WHERE s.id = ${Number(id)}`;
         if (!story) return res.status(404).json({ error: 'Story not found' });
         const images = await db`SELECT * FROM story_images WHERE story_id = ${Number(id)} ORDER BY "order"`;
         return res.status(200).json({ ...story, images });
       }
       const rows = statusFilter
-        ? await db`SELECT s.*, e.name AS event_name, c.name AS community_name FROM stories s LEFT JOIN events e ON e.id = s.event_id LEFT JOIN communities c ON c.id = s.community_id WHERE s.status = ${statusFilter} ORDER BY s.id`
-        : await db`SELECT s.*, e.name AS event_name, c.name AS community_name FROM stories s LEFT JOIN events e ON e.id = s.event_id LEFT JOIN communities c ON c.id = s.community_id ORDER BY s.id`;
+        ? await db`SELECT s.*, e.name AS event_name, c.name AS community_name, u.name AS pengaju_name FROM stories s LEFT JOIN events e ON e.id = s.event_id LEFT JOIN communities c ON c.id = s.community_id LEFT JOIN users u ON u.id = s.user_id WHERE s.status = ${statusFilter} ORDER BY s.id`
+        : await db`SELECT s.*, e.name AS event_name, c.name AS community_name, u.name AS pengaju_name FROM stories s LEFT JOIN events e ON e.id = s.event_id LEFT JOIN communities c ON c.id = s.community_id LEFT JOIN users u ON u.id = s.user_id ORDER BY s.id`;
       const images = await db`SELECT * FROM story_images ORDER BY story_id, "order"`;
       return res.status(200).json(rows.map((s) => ({ ...s, images: images.filter((i) => i.story_id === s.id) })));
     }
 
     if (req.method === 'POST') {
-      const { title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, publish_end_date, submitter_email, submitter_phone, status, images } = req.body;
+      const { title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, publish_end_date, submitter_email, submitter_phone, status, images, origin, user_id } = req.body;
       if (!title) return res.status(400).json({ error: 'title is required' });
       const [story] = await db`
-        INSERT INTO stories (title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, publish_end_date, submitter_email, submitter_phone, status)
-        VALUES (${title}, ${type ?? 'general'}, ${event_id ?? null}, ${community_id ?? null}, ${category ?? null}, ${JSON.stringify(tags ?? [])}, ${cover_image ?? null}, ${content ?? null}, ${author ?? null}, ${published_at ?? null}, ${publish_end_date ?? null}, ${submitter_email ?? null}, ${submitter_phone ?? null}, ${status ?? 'draft'})
+        INSERT INTO stories (title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, publish_end_date, submitter_email, submitter_phone, status, origin, user_id)
+        VALUES (${title}, ${type ?? 'general'}, ${event_id ?? null}, ${community_id ?? null}, ${category ?? null}, ${JSON.stringify(tags ?? [])}, ${cover_image ?? null}, ${content ?? null}, ${author ?? null}, ${published_at ?? null}, ${publish_end_date ?? null}, ${submitter_email ?? null}, ${submitter_phone ?? null}, ${status ?? 'draft'}, ${origin ?? 'internal'}, ${user_id ?? null})
         RETURNING *`;
       const savedImages = [];
       for (const [i, img] of (images ?? []).entries()) {
@@ -48,6 +48,8 @@ export default async function handler(req, res) {
 
     if (req.method === 'PATCH' && id) {
       const { title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, publish_end_date, submitter_email, submitter_phone, status, images } = req.body;
+      // origin & user_id sengaja tidak diterima di sini: origin/pengaju
+      // ditetapkan sekali saat story dibuat dan tidak boleh diubah lewat edit.
       const [story] = await db`
         UPDATE stories SET
           title = COALESCE(${title ?? null}, title),
