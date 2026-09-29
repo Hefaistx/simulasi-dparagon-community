@@ -17,6 +17,7 @@ import {
   Ticket,
   QrCode,
   Menu,
+  Paperclip,
 } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
@@ -3535,39 +3536,212 @@ const PENGAJUAN_TYPE_STYLE = {
   Sponsor: "bg-pink-100 text-pink-700",
 };
 
+// Chip jenis di atas list. EO & Sponsor digabung jadi "Kemitraan" karena
+// form, kartu, dan alur statusnya sama-sama lead kerja sama.
+const PENGAJUAN_GROUPS = [
+  { key: "semua", label: "Semua", match: () => true },
+  { key: "komunitas", label: "Komunitas", match: (i) => i.tipe === "Klub" },
+  { key: "story", label: "Story", match: (i) => i.tipe === "Story" },
+  { key: "kemitraan", label: "Kemitraan", match: (i) => i.tipe === "EO" || i.tipe === "Sponsor" },
+];
+
+// Alur status tiap jenis beda, jadi chip status ikut jenis yang dipilih.
+// Di "Semua" statusnya diringkas jadi tiga tahap umum.
+const PENGAJUAN_STATUS_OPTIONS = {
+  semua: ["Diajukan", "Diproses", "Ditolak"],
+  komunitas: ["Diajukan", "Disetujui", "Ditolak"],
+  story: ["Diajukan", "Dipublish", "Ditolak"],
+  kemitraan: ["Diajukan", "Sedang Dihubungi Tim", "Ditolak"],
+};
+
+const KEMITRAAN_JENIS_OPTIONS = [
+  { key: "semua", label: "Semua jenis" },
+  { key: "eo", label: "EO" },
+  { key: "sponsor-pengajuan", label: "Sponsor · Pengajuan" },
+  { key: "sponsor-penawaran", label: "Sponsor · Penawaran" },
+];
+
+const pengajuanTipeLabel = (item) => {
+  if (item.tipe === "Klub") return "Komunitas";
+  if (item.tipe === "Sponsor") return item.raw.sub_type === "penawaran" ? "Sponsor · Penawaran" : "Sponsor · Pengajuan";
+  return item.tipe;
+};
+
+const pengajuanJenisKey = (item) =>
+  item.tipe === "EO" ? "eo" : `sponsor-${item.raw.sub_type === "penawaran" ? "penawaran" : "pengajuan"}`;
+
+// Tahap umum untuk chip status di "Semua".
+const pengajuanTahap = (item) =>
+  item.statusLabel === "Diajukan" ? "Diajukan" : item.statusLabel === "Ditolak" ? "Ditolak" : "Diproses";
+
+// Kolom DATE dari API bisa berupa "YYYY-MM-DD" atau ISO timestamp.
+const pengajuanDate = (d) => (d ? fmtShortDate(String(d).slice(0, 10)) : "");
+const pengajuanRange = (start, end) => {
+  if (!start) return "";
+  const s = pengajuanDate(start);
+  const e = end ? pengajuanDate(end) : "";
+  return e && e !== s ? `${s} – ${e}` : s;
+};
+const pengajuanRelative = (d) => {
+  if (!d) return "";
+  const then = new Date(String(d).slice(0, 10) + "T00:00:00");
+  const now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - then) / 86400000);
+  if (days < 0 || days > 30) return "";
+  if (days === 0) return "hari ini";
+  if (days === 1) return "kemarin";
+  return `${days} hari lalu`;
+};
+
+// Satu baris info kunci di kartu, beda per jenis.
+const pengajuanInfoLine = (item) => {
+  const r = item.raw;
+  if (item.tipe === "Klub") return r.kategori_name || "";
+  if (item.tipe === "Story") return r.community_name || "Umum";
+  if (item.tipe === "EO") return pengajuanRange(r.event_date, r.event_date_end);
+  if (r.sub_type === "penawaran") return pengajuanRange(r.sponsorship_start, r.sponsorship_end);
+  return r.pic || "";
+};
+
+function DetailRow({ label, children }) {
+  if (children === undefined || children === null || children === "" || children === false) return null;
+  return (
+    <div>
+      <span className="text-gray-400">{label}</span>
+      <div className="text-gray-700 whitespace-pre-line break-words">{children}</div>
+    </div>
+  );
+}
+
 function PengajuanDetail({ item }) {
   const r = item.raw;
+  const kontak = [r.pic || r.pic_name, r.email || r.pic_email, r.phone || r.pic_phone].filter(Boolean);
+  const lampiran = r.attachment && (
+    <a
+      href={r.attachment}
+      download={r.attachment_name || "lampiran"}
+      className="inline-flex items-center gap-1.5 text-blue-600 hover:underline"
+    >
+      <Paperclip size={14} /> {r.attachment_name || "Lampiran"}
+    </a>
+  );
+
+  let body;
   if (item.tipe === "Klub") {
-    return (
-      <div className="space-y-3 text-sm">
-        <div><span className="text-gray-400">Nama Komunitas</span><p className="font-medium text-gray-900">{r.name}</p></div>
-        {r.description && <div><span className="text-gray-400">Deskripsi</span><p className="text-gray-700">{r.description}</p></div>}
-        {r.notes && <div><span className="text-gray-400">Catatan Admin</span><p className="text-gray-700">{r.notes}</p></div>}
-      </div>
+    body = (
+      <>
+        <DetailRow label="Nama Komunitas"><span className="font-medium text-gray-900">{r.name}</span></DetailRow>
+        <DetailRow label="Kategori">{r.kategori_name}</DetailRow>
+        <DetailRow label="Deskripsi">{r.description}</DetailRow>
+        <DetailRow label="Kontak PIC">{kontak.join(" · ")}</DetailRow>
+      </>
+    );
+  } else if (item.tipe === "Story") {
+    body = (
+      <>
+        <DetailRow label="Judul"><span className="font-medium text-gray-900">{r.title}</span></DetailRow>
+        <DetailRow label="Penulis">{r.author}</DetailRow>
+        <DetailRow label="Untuk">{r.community_name || "Umum"}</DetailRow>
+        {r.cover_image && (
+          <div>
+            <span className="text-gray-400">Cover</span>
+            <img src={r.cover_image} alt="" className="mt-1 w-full max-h-48 object-cover rounded-lg" />
+          </div>
+        )}
+        <DetailRow label="Isi"><span className="line-clamp-6">{r.content}</span></DetailRow>
+      </>
+    );
+  } else if (item.tipe === "EO") {
+    body = (
+      <>
+        <DetailRow label="Organisasi"><span className="font-medium text-gray-900">{r.name}</span></DetailRow>
+        <DetailRow label="Kontak">{kontak.join(" · ")}</DetailRow>
+        <DetailRow label="Website / Sosmed">{r.website}</DetailRow>
+        <DetailRow label="Tanggal Event">{pengajuanRange(r.event_date, r.event_date_end)}</DetailRow>
+        <DetailRow label="Deskripsi Event">{r.event_description}</DetailRow>
+        <DetailRow label="Kebutuhan">{r.description}</DetailRow>
+        <DetailRow label="Lampiran">{lampiran}</DetailRow>
+      </>
+    );
+  } else if (r.sub_type === "penawaran") {
+    body = (
+      <>
+        <DetailRow label="Organisasi"><span className="font-medium text-gray-900">{r.name}</span></DetailRow>
+        <DetailRow label="Kontak">{kontak.join(" · ")}</DetailRow>
+        <DetailRow label="Website / Sosmed">{r.website}</DetailRow>
+        <DetailRow label="Periode Sponsorship">{pengajuanRange(r.sponsorship_start, r.sponsorship_end)}</DetailRow>
+        <DetailRow label="Benefit">{r.benefit}</DetailRow>
+        <DetailRow label="Lampiran">{lampiran}</DetailRow>
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <DetailRow label="Organisasi"><span className="font-medium text-gray-900">{r.name}</span></DetailRow>
+        <DetailRow label="Kontak">{kontak.join(" · ")}</DetailRow>
+        <DetailRow label="Website / Sosmed">{r.website}</DetailRow>
+        <DetailRow label="Deskripsi Event">{r.event_description}</DetailRow>
+        <DetailRow label="Kebutuhan Sponsorship">{r.description}</DetailRow>
+        <DetailRow label="Lampiran">{lampiran}</DetailRow>
+      </>
     );
   }
-  if (item.tipe === "Story") {
-    return (
-      <div className="space-y-3 text-sm">
-        <div><span className="text-gray-400">Judul</span><p className="font-medium text-gray-900">{r.title}</p></div>
-        {r.content && <div><span className="text-gray-400">Isi</span><p className="text-gray-700 line-clamp-6">{r.content}</p></div>}
-      </div>
-    );
-  }
-  // EO / Sponsor
+
   return (
     <div className="space-y-3 text-sm">
-      <div><span className="text-gray-400">Organisasi</span><p className="font-medium text-gray-900">{r.name}</p></div>
-      {r.pic && <div><span className="text-gray-400">PIC</span><p className="text-gray-700">{r.pic}</p></div>}
-      {r.description && <div><span className="text-gray-400">Kebutuhan</span><p className="text-gray-700">{r.description}</p></div>}
-      {r.notes && <div><span className="text-gray-400">Catatan Admin</span><p className="text-gray-700">{r.notes}</p></div>}
+      {item.statusLabel === "Ditolak" && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+          <p className="text-xs font-semibold text-red-700 mb-0.5">Alasan penolakan</p>
+          <p className="text-red-700 whitespace-pre-line">{r.notes || "Tim belum menuliskan alasan penolakan."}</p>
+        </div>
+      )}
+      {body}
+      <DetailRow label="Diajukan">
+        {pengajuanDate(item.tanggal)}
+        {pengajuanRelative(item.tanggal) && ` (${pengajuanRelative(item.tanggal)})`}
+      </DetailRow>
     </div>
+  );
+}
+
+function FilterChip({ active, dim, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors whitespace-nowrap ${
+        active
+          ? "bg-blue-600 text-white border-blue-600"
+          : `bg-white border-gray-200 hover:bg-gray-50 ${dim ? "text-gray-300" : "text-gray-700"}`
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
 function StatusPengajuanSection({ state }) {
   const [detail, setDetail] = useState(null);
+  const [group, setGroup] = useState("semua");
+  const [statusFilter, setStatusFilter] = useState("semua");
+  const [jenisFilter, setJenisFilter] = useState("semua");
+  const [search, setSearch] = useState("");
   const items = state.pengajuanSaya || [];
+
+  const changeGroup = (key) => {
+    setGroup(key);
+    setStatusFilter("semua");
+    setJenisFilter("semua");
+  };
+
+  const groupDef = PENGAJUAN_GROUPS.find((g) => g.key === group);
+  const q = search.trim().toLowerCase();
+  const matchSearch = (i) =>
+    !q || i.judul.toLowerCase().includes(q) || (i.tipe === "Story" && (i.raw.community_name || "").toLowerCase().includes(q));
+  const matchJenis = (i) => group !== "kemitraan" || jenisFilter === "semua" || pengajuanJenisKey(i) === jenisFilter;
+  const statusOf = (i) => (group === "semua" ? pengajuanTahap(i) : i.statusLabel);
+
+  const inGroup = items.filter((i) => groupDef.match(i) && matchJenis(i) && matchSearch(i));
+  const visible = inGroup.filter((i) => statusFilter === "semua" || statusOf(i) === statusFilter);
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
@@ -3587,38 +3761,98 @@ function StatusPengajuanSection({ state }) {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {items.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setDetail(item)}
-              className="w-full text-left bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all flex items-center justify-between gap-3"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PENGAJUAN_TYPE_STYLE[item.tipe]}`}>
-                    {item.tipe}
-                  </span>
-                  <StatusBadge status={item.statusLabel} />
-                </div>
-                <p className="font-medium text-gray-900 truncate">{item.judul}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {item.tanggal ? fmtShortDate(item.tanggal) : "-"}
-                </p>
-              </div>
-              <ChevronRight size={18} className="text-gray-300 flex-shrink-0" />
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
+            {PENGAJUAN_GROUPS.map((g) => {
+              const n = items.filter(g.match).length;
+              return (
+                <FilterChip key={g.key} active={group === g.key} dim={n === 0} onClick={() => changeGroup(g.key)}>
+                  {g.label} ({n})
+                </FilterChip>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
+            <FilterChip active={statusFilter === "semua"} onClick={() => setStatusFilter("semua")}>
+              Semua status
+            </FilterChip>
+            {PENGAJUAN_STATUS_OPTIONS[group].map((s) => {
+              const n = inGroup.filter((i) => statusOf(i) === s).length;
+              return (
+                <FilterChip key={s} active={statusFilter === s} dim={n === 0} onClick={() => setStatusFilter(s)}>
+                  {s} ({n})
+                </FilterChip>
+              );
+            })}
+          </div>
+
+          {group === "kemitraan" && (
+            <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
+              {KEMITRAAN_JENIS_OPTIONS.map((j) => (
+                <FilterChip key={j.key} active={jenisFilter === j.key} onClick={() => setJenisFilter(j.key)}>
+                  {j.label}
+                </FilterChip>
+              ))}
+            </div>
+          )}
+
+          <div className="relative mb-4">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={group === "story" ? "Cari judul atau nama komunitas..." : "Cari judul..."}
+              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {visible.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="font-medium text-gray-700 mb-1">Belum ada pengajuan</p>
+              <p className="text-sm text-gray-400">Tidak ada pengajuan yang sesuai dengan filter ini.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {visible.map((item) => {
+                const info = pengajuanInfoLine(item);
+                const rel = pengajuanRelative(item.tanggal);
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => setDetail(item)}
+                    className="w-full text-left bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PENGAJUAN_TYPE_STYLE[item.tipe]}`}>
+                          {pengajuanTipeLabel(item)}
+                        </span>
+                        <StatusBadge status={item.statusLabel} />
+                      </div>
+                      <p className="font-medium text-gray-900 truncate">{item.judul}</p>
+                      {info && <p className="text-xs text-gray-500 mt-0.5 truncate">{info}</p>}
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Diajukan {item.tanggal ? pengajuanDate(item.tanggal) : "-"}
+                        {rel && ` · ${rel}`}
+                      </p>
+                    </div>
+                    <ChevronRight size={18} className="text-gray-300 flex-shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       <Modal open={!!detail} onClose={() => setDetail(null)} size="md">
         {detail && (
           <div>
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PENGAJUAN_TYPE_STYLE[detail.tipe]}`}>
-                  {detail.tipe}
+                  {pengajuanTipeLabel(detail)}
                 </span>
                 <StatusBadge status={detail.statusLabel} />
               </div>
