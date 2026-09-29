@@ -3725,6 +3725,7 @@ function StatusPengajuanSection({ state }) {
   const [statusFilter, setStatusFilter] = useState("semua");
   const [jenisFilter, setJenisFilter] = useState("semua");
   const [search, setSearch] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
   const items = state.pengajuanSaya || [];
 
   const changeGroup = (key) => {
@@ -3742,6 +3743,13 @@ function StatusPengajuanSection({ state }) {
 
   const inGroup = items.filter((i) => groupDef.match(i) && matchJenis(i) && matchSearch(i));
   const visible = inGroup.filter((i) => statusFilter === "semua" || statusOf(i) === statusFilter);
+
+  // Ringkasan filter aktif, tampil di header accordion saat tertutup.
+  const activeFilterLabels = [
+    q && `"${search.trim()}"`,
+    statusFilter !== "semua" && statusFilter,
+    group === "kemitraan" && jenisFilter !== "semua" && KEMITRAAN_JENIS_OPTIONS.find((j) => j.key === jenisFilter).label,
+  ].filter(Boolean);
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
@@ -3762,7 +3770,7 @@ function StatusPengajuanSection({ state }) {
         </div>
       ) : (
         <>
-          <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
+          <div className="flex flex-wrap gap-2 mb-3">
             {PENGAJUAN_GROUPS.map((g) => {
               const n = items.filter(g.match).length;
               return (
@@ -3773,38 +3781,66 @@ function StatusPengajuanSection({ state }) {
             })}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
-            <FilterChip active={statusFilter === "semua"} onClick={() => setStatusFilter("semua")}>
-              Semua status
-            </FilterChip>
-            {PENGAJUAN_STATUS_OPTIONS[group].map((s) => {
-              const n = inGroup.filter((i) => statusOf(i) === s).length;
-              return (
-                <FilterChip key={s} active={statusFilter === s} dim={n === 0} onClick={() => setStatusFilter(s)}>
-                  {s} ({n})
-                </FilterChip>
-              );
-            })}
-          </div>
+          <div className="mb-4 rounded-xl border border-gray-200 bg-white">
+            <button
+              onClick={() => setFilterOpen((o) => !o)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+            >
+              <div className="min-w-0 flex items-baseline">
+                <span className="text-sm font-medium text-gray-900 flex-shrink-0">Filter</span>
+                <span className="text-xs text-gray-500 ml-2 truncate">
+                  {activeFilterLabels.length ? activeFilterLabels.join(" · ") : "Tidak ada filter aktif"}
+                </span>
+              </div>
+              <ChevronRight
+                size={18}
+                className={`text-gray-400 flex-shrink-0 transition-transform ${filterOpen ? "rotate-90" : ""}`}
+              />
+            </button>
 
-          {group === "kemitraan" && (
-            <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
-              {KEMITRAAN_JENIS_OPTIONS.map((j) => (
-                <FilterChip key={j.key} active={jenisFilter === j.key} onClick={() => setJenisFilter(j.key)}>
-                  {j.label}
-                </FilterChip>
-              ))}
-            </div>
-          )}
+            {filterOpen && (
+              <div className="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={group === "story" ? "Cari judul atau nama komunitas..." : "Cari judul..."}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
-          <div className="relative mb-4">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={group === "story" ? "Cari judul atau nama komunitas..." : "Cari judul..."}
-              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+                <div>
+                  <p className="text-xs text-gray-400 mb-1.5">Status</p>
+                  <div className="flex flex-wrap gap-2">
+                    <FilterChip active={statusFilter === "semua"} onClick={() => setStatusFilter("semua")}>
+                      Semua status
+                    </FilterChip>
+                    {PENGAJUAN_STATUS_OPTIONS[group].map((s) => {
+                      const n = inGroup.filter((i) => statusOf(i) === s).length;
+                      return (
+                        <FilterChip key={s} active={statusFilter === s} dim={n === 0} onClick={() => setStatusFilter(s)}>
+                          {s} ({n})
+                        </FilterChip>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {group === "kemitraan" && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1.5">Jenis kemitraan</p>
+                    <div className="flex flex-wrap gap-2">
+                      {KEMITRAAN_JENIS_OPTIONS.map((j) => (
+                        <FilterChip key={j.key} active={jenisFilter === j.key} onClick={() => setJenisFilter(j.key)}>
+                          {j.label}
+                        </FilterChip>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {visible.length === 0 ? (
