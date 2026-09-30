@@ -314,7 +314,7 @@ function StatBox({ label, value }) {
   );
 }
 
-function ExportButtons({ toast, label = 'data' }) {
+function ExportButtons({ toast, label = 'data', pdf = true }) {
   return (
     <div className="flex gap-2">
       <button
@@ -323,12 +323,14 @@ function ExportButtons({ toast, label = 'data' }) {
       >
         <Download size={14} /> Export Excel
       </button>
-      <button
-        onClick={() => toast('success', `Export PDF ${label} berhasil (simulasi).`)}
-        className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
-      >
-        <FileText size={14} /> Export PDF
-      </button>
+      {pdf && (
+        <button
+          onClick={() => toast('success', `Export PDF ${label} berhasil (simulasi).`)}
+          className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
+        >
+          <FileText size={14} /> Export PDF
+        </button>
+      )}
     </div>
   );
 }
@@ -621,9 +623,12 @@ function KategoriKomunitasPage({ state, dispatch, toast, loadData }) {
           <h1 className="text-xl font-bold text-gray-900">Kategori Komunitas</h1>
           <p className="text-sm text-gray-500 mt-0.5">Kelola label kategori untuk komunitas</p>
         </div>
-        <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+        <div className="flex items-center gap-2">
+          <ExportButtons toast={toast} label="kategori komunitas" />
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
           <Plus size={16} /> Tambah
         </button>
+        </div>
       </div>
       {state.kategoriKomunitas.length === 0 ? (
         <EmptyState title="Belum ada kategori" desc="Tambahkan kategori komunitas pertama" action={<button onClick={openAdd} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg">Tambah</button>} />
@@ -704,7 +709,10 @@ function KategoriEventPage({ state, dispatch, toast, loadData }) {
           <h1 className="text-xl font-bold text-gray-900">Kategori Event</h1>
           <p className="text-sm text-gray-500">Kelola jenis event untuk standarisasi pelaporan</p>
         </div>
-        <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Plus size={16} /> Tambah</button>
+        <div className="flex items-center gap-2">
+          <ExportButtons toast={toast} label="kategori event" />
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Plus size={16} /> Tambah</button>
+        </div>
       </div>
       {state.kategoriEvent.length === 0 ? (
         <EmptyState title="Belum ada kategori event" desc="Tambahkan kategori event pertama" />
@@ -858,7 +866,10 @@ function VenuePage({ state, dispatch, toast, loadData }) {
           <h1 className="text-xl font-bold text-gray-900">Venue</h1>
           <p className="text-sm text-gray-500">Database lokasi penyelenggaraan acara</p>
         </div>
-        <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Plus size={16} /> Tambah Venue</button>
+        <div className="flex items-center gap-2">
+          <ExportButtons toast={toast} label="venue" />
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Plus size={16} /> Tambah Venue</button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
@@ -1019,7 +1030,10 @@ function KomunitasPage({ state, dispatch, toast, loadData }) {
           <h1 className="text-xl font-bold text-gray-900">Komunitas</h1>
           <p className="text-sm text-gray-500">Database induk partner komunitas</p>
         </div>
-        <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Plus size={16} /> Tambah Komunitas</button>
+        <div className="flex items-center gap-2">
+          <ExportButtons toast={toast} label="komunitas" />
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"><Plus size={16} /> Tambah Komunitas</button>
+        </div>
       </div>
       <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
         <button onClick={() => setFilterOpen(p => !p)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
