@@ -40,9 +40,16 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PATCH' && id) {
-      const { status } = req.body;
+      const { status, notes } = req.body;
       if (!status) return res.status(400).json({ error: 'status is required' });
-      const [row] = await db`UPDATE reviews SET status = ${status} WHERE id = ${Number(id)} RETURNING *`;
+      // reviewed_at hanya berubah bila status benar-benar berganti; notes (alasan)
+      // hanya berlaku untuk 'rejected' dan dikosongkan bila keputusan dibalik.
+      const [row] = await db`
+        UPDATE reviews SET
+          reviewed_at = CASE WHEN ${status}::text = status THEN reviewed_at WHEN ${status}::text = 'pending' THEN NULL ELSE NOW() END,
+          notes = CASE WHEN ${status}::text = 'rejected' THEN ${notes ?? null}::text ELSE NULL END,
+          status = ${status}
+        WHERE id = ${Number(id)} RETURNING *`;
       if (!row) return res.status(404).json({ error: 'Review not found' });
       return res.status(200).json(row);
     }

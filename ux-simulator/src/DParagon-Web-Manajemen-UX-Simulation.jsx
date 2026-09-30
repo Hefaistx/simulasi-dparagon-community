@@ -80,6 +80,7 @@ const EMPTY_STATE = {
   stories: [],
   headBanners: [],
   reviews: [],
+  communityMembers: [],
 };
 
 // Mappers: API (English) → component state (Indonesian field names)
@@ -91,8 +92,8 @@ const fromApiEvent = e => ({
   deskripsi: e.description,
   kategoriEventId: e.category_id,
   venueId: e.venue_id,
-  tanggalMulai: e.start_date,
-  tanggalSelesai: e.end_date,
+  tanggalMulai: e.start_date ? String(e.start_date).slice(0, 10) : e.start_date,
+  tanggalSelesai: e.end_date ? String(e.end_date).slice(0, 10) : e.end_date,
   jamMulai: e.start_time,
   jamSelesai: e.end_time,
   kuota: Number(e.quota),
@@ -104,9 +105,11 @@ const fromApiEvent = e => ({
   rules: e.rules ?? [],
   organizer: e.organizers?.[0]?.organizer_name ?? '',
   sponsor: e.sponsors?.[0]?.sponsor_name ?? '',
+  sponsorText: e.sponsor_name ?? '',
   organizers: e.organizers ?? [],
   sponsors: e.sponsors ?? [],
-  agenda: e.agenda ?? [],
+  // Rundown dari DB berbentuk { time, activity }; form & tampilan memakai { jam, kegiatan }.
+  agenda: (e.agenda ?? []).map(a => ({ jam: String(a.time ?? '').slice(0, 5), kegiatan: a.activity ?? '' })),
   pendaftar: Number(e.pendaftar ?? 0),
   createdAt: e.created_at, updatedAt: e.updated_at,
 });
@@ -115,7 +118,8 @@ const fromApiKomunitas = c => ({
   nama: c.name,
   deskripsi: c.description,
   kategoriId: c.category_id,
-  tipe: c.type,
+  // Klub tanpa tipe tersimpan tapi punya submitted_at berarti masuk via pengajuan web.
+  tipe: c.type ?? (c.submitted_at ? 'Eksternal' : 'Internal'),
   linkWA: c.wa_link,
   status: c.status === 'active' ? 'Aktif' : c.status === 'inactive' ? 'Nonaktif' : c.status,
   jumlahMember: Number(c.jumlah_member ?? 0),
@@ -123,6 +127,9 @@ const fromApiKomunitas = c => ({
   admin: c.admin,
   coverImage: c.cover_image ?? '',
   rules: c.rules ?? [],
+  galeri: c.gallery ?? [],
+  picNama: c.pic_name ?? '', picEmail: c.pic_email ?? '', picHp: c.pic_phone ?? '',
+  submittedAt: c.submitted_at ?? null, catatan: c.notes ?? '', reviewedAt: c.reviewed_at ?? null,
   createdAt: c.created_at, updatedAt: c.updated_at,
 });
 const fromApiPengajuan = c => ({
@@ -133,9 +140,10 @@ const fromApiPengajuan = c => ({
   namaPIC: c.pic_name,
   emailPIC: c.pic_email,
   noHpPIC: c.pic_phone,
-  status: c.status === 'active' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Pending',
+  status: c.status === 'active' || c.status === 'inactive' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Pending',
   catatan: c.notes ?? '',
   tanggalAjuan: c.submitted_at,
+  reviewedAt: c.reviewed_at ?? null,
   createdAt: c.created_at, updatedAt: c.updated_at,
 });
 const LEAD_STATUS_LABELS = { pending: 'Pending Review', contacted: 'Contacted', rejected: 'Rejected' };
@@ -177,6 +185,7 @@ const fromApiStory = s => ({
   submitterEmail: s.submitter_email ?? '',
   submitterPhone: s.submitter_phone ?? '',
   origin: s.origin === 'external' ? 'Eksternal' : 'Internal',
+  alasanTolak: s.notes ?? '',
   status: s.status === 'published' ? 'Published' : s.status === 'pending' ? 'Pending Approval' : s.status === 'rejected' ? 'Rejected' : 'Draft',
   images: s.images ?? [],
   createdAt: s.created_at, updatedAt: s.updated_at,
@@ -200,7 +209,8 @@ const fromApiReview = r => ({
   komentar: r.comment ?? '',
   status: r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : 'Pending',
   tanggalSubmit: r.submitted_at,
-  catatan: '',
+  catatan: r.notes ?? '',
+  reviewedAt: r.reviewed_at ?? null,
 });
 const fromApiPartisipan = p => ({
   id: p.id,
@@ -225,7 +235,7 @@ const toApiEvent = f => ({
   facilities: f.fasilitas ?? [], rules: f.rules ?? [],
 });
 const toApiVenue = f => ({ name: f.nama, address: f.alamat, capacity: Number(f.kapasitas) || 0, city: f.kota, maps_link: f.mapsLink || null });
-const toApiKomunitas = f => ({ name: f.nama, description: f.deskripsi, category_id: f.kategoriId ? Number(f.kategoriId) : null, type: f.tipe, city: f.kota || null, status: f.status === 'Aktif' ? 'active' : f.status === 'Nonaktif' ? 'inactive' : 'active', wa_link: f.linkWA, admin: f.admin, cover_image: f.coverImage || '', rules: f.rules ?? [] });
+const toApiKomunitas = f => ({ name: f.nama, description: f.deskripsi, category_id: f.kategoriId ? Number(f.kategoriId) : null, type: f.tipe, city: f.kota || null, status: f.status === 'Aktif' ? 'active' : f.status === 'Nonaktif' ? 'inactive' : 'active', wa_link: f.linkWA, admin: f.admin, cover_image: f.coverImage || '', rules: f.rules ?? [], gallery: f.galeri ?? [] });
 const toApiStory = f => ({ title: f.judul, type: f.tipeRelasi === 'Event' ? 'event' : f.tipeRelasi === 'Komunitas' ? 'community' : 'general', event_id: f.relatedEventId ? Number(f.relatedEventId) : null, community_id: f.relatedKomunitasId ? Number(f.relatedKomunitasId) : null, category: f.kategori, tags: f.tags ? f.tags.split(',').map(t => t.trim()).filter(Boolean) : [], cover_image: f.coverImage || '', content: f.konten, author: f.penulis, published_at: f.tanggalPublish || null, publish_end_date: f.tayangSelesai || null, status: f.status === 'Published' ? 'published' : f.status === 'Pending Approval' ? 'pending' : f.status === 'Rejected' ? 'rejected' : 'draft' });
 const toApiBanner = f => ({ type: f.sumber === 'Event' ? 'event' : f.sumber === 'Artikel' ? 'story' : 'community', info_id: Number(f.relatedId), status: f.aktif ? 'active' : 'inactive', order: Number(f.urutan ?? 0) });
 
@@ -296,7 +306,8 @@ function reducer(state, action) {
 // HELPERS
 // ═══════════════════════════════════════════════════════════════
 const fmt = (n) => Number(n).toLocaleString('id-ID');
-const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+// Kolom DATE dari API bisa datang sebagai ISO lengkap; ambil bagian tanggalnya saja.
+const fmtDate = (d) => new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 const fmtDateTime = (d) => {
   if (!d) return '—';
   return new Date(d).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -307,7 +318,7 @@ const fmtDateTime = (d) => {
 // ═══════════════════════════════════════════════════════════════
 function StatBox({ label, value }) {
   return (
-    <div className="border border-gray-200 rounded-lg px-4 py-2.5 text-center min-w-[130px] bg-white shrink-0">
+    <div className="border border-gray-200 rounded-lg px-4 py-2.5 text-center bg-white min-w-0">
       <div className="text-xs text-gray-400 mb-0.5 whitespace-nowrap">{label}</div>
       <div className="font-bold text-gray-900 text-lg">{value}</div>
     </div>
@@ -486,6 +497,938 @@ function ImageUploadField({ value, onChange }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// DETAIL PAGE KIT (dipakai semua halaman detail)
+// Header + kartu konten di kiri, ringkasan di kanan, aksi di bilah bawah
+// supaya admin membaca dulu sebelum mengambil keputusan.
+// ═══════════════════════════════════════════════════════════════
+const fmtDateSafe = (d) => (d ? fmtDate(String(d).slice(0, 10)) : '—');
+const fmtRange = (a, b) => {
+  if (!a && !b) return '—';
+  if (!b || a === b) return fmtDateSafe(a);
+  return `${fmtDateSafe(a)} – ${fmtDateSafe(b)}`;
+};
+
+function DetailBack({ label, onClick }) {
+  return (
+    <button onClick={onClick} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-5 group">
+      <ArrowLeft size={15} className="group-hover:-translate-x-0.5 transition-transform" /> {label}
+    </button>
+  );
+}
+
+function DetailHeader({ cover, badges, title, subtitle }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {cover && <img src={cover} alt="" className="w-full h-52 object-cover" />}
+      <div className="p-6">
+        <div className="flex items-center gap-2 flex-wrap mb-2">{badges}</div>
+        <h1 className="text-2xl font-bold text-gray-900 leading-tight">{title}</h1>
+        {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+function DetailLayout({ main, aside }) {
+  return (
+    <div className="grid xl:grid-cols-3 gap-5 mt-5">
+      <div className="xl:col-span-2 space-y-5 min-w-0">{main}</div>
+      <div className="space-y-5 min-w-0">{aside}</div>
+    </div>
+  );
+}
+
+function DetailCard({ title, children, tone }) {
+  const toneCls = tone === 'danger' ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white';
+  return (
+    <div className={`rounded-xl border p-5 ${toneCls}`}>
+      {title && <h2 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${tone === 'danger' ? 'text-red-700' : 'text-gray-400'}`}>{title}</h2>}
+      {children}
+    </div>
+  );
+}
+
+function InfoItem({ label, children }) {
+  const empty = children === undefined || children === null || children === '' || children === false;
+  return (
+    <div className="min-w-0">
+      <div className="text-xs text-gray-400 mb-0.5">{label}</div>
+      <div className="text-sm text-gray-900 break-words">{empty ? <span className="text-gray-300">—</span> : children}</div>
+    </div>
+  );
+}
+
+function InfoList({ children }) {
+  return <div className="space-y-3">{children}</div>;
+}
+
+function ChipList({ items, empty = 'Belum ada data.' }) {
+  if (!items || items.length === 0) return <p className="text-sm text-gray-400">{empty}</p>;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {items.map((it, i) => <span key={i} className="px-2.5 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">{it}</span>)}
+    </div>
+  );
+}
+
+function TextBlock({ children, empty = 'Belum ada data.' }) {
+  if (!children) return <p className="text-sm text-gray-400">{empty}</p>;
+  return <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{children}</p>;
+}
+
+// items: [{ title, meta, note, tone: 'done' | 'ok' | 'bad' | 'wait' }]
+function Timeline({ items }) {
+  const dot = { done: 'bg-blue-500', ok: 'bg-green-500', bad: 'bg-red-500', wait: 'bg-gray-300' };
+  return (
+    <ol className="space-y-4">
+      {items.map((it, i) => (
+        <li key={i} className="flex gap-3">
+          <div className="flex flex-col items-center">
+            <span className={`w-2.5 h-2.5 rounded-full mt-1.5 ${dot[it.tone] || dot.done}`} />
+            {i < items.length - 1 && <span className="w-px flex-1 bg-gray-200 mt-1" />}
+          </div>
+          <div className="pb-1 min-w-0">
+            <div className="text-sm font-medium text-gray-900">{it.title}</div>
+            {it.meta && <div className="text-xs text-gray-400">{it.meta}</div>}
+            {it.note && <div className="text-sm text-gray-600 mt-1 whitespace-pre-line">{it.note}</div>}
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function ActionBar({ hint, children }) {
+  return (
+    <div className="sticky bottom-4 mt-6 z-10">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-xs text-gray-400">{hint}</p>
+        <div className="flex gap-2 flex-wrap justify-end">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+const btnPrimary = 'flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700';
+const btnSuccess = 'flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700';
+const btnDangerSoft = 'flex items-center gap-1.5 px-4 py-2 border border-red-200 text-red-600 text-sm rounded-lg hover:bg-red-50';
+const btnGhost = 'flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-sm rounded-lg hover:bg-gray-50';
+
+// ═══════════════════════════════════════════════════════════════
+// DETAIL: KLUB (List Klub)
+// ═══════════════════════════════════════════════════════════════
+function KlubDetailView({ klub, state, onBack, toast, loadData }) {
+  const [kickTarget, setKickTarget] = useState(null);
+  const kat = state.kategoriKomunitas.find(k => k.id === Number(klub.kategoriId));
+  const members = (state.communityMembers || []).filter(m => m.communityId === klub.id);
+  const events = state.events.filter(e => e.komunitasId === klub.id);
+  const stories = state.stories.filter(s => s.relatedKomunitasId === klub.id && s.status === 'Published');
+  const fromPengajuan = !!klub.submittedAt;
+
+  const riwayat = fromPengajuan
+    ? [
+        { title: 'Diajukan', meta: `${fmtDateSafe(klub.submittedAt)}${klub.picNama ? ` · oleh ${klub.picNama}` : ''}`, tone: 'done' },
+        { title: klub.status === 'Ditolak' ? 'Ditolak' : 'Disetujui', meta: fmtDateTime(klub.reviewedAt), note: klub.catatan || null, tone: klub.status === 'Ditolak' ? 'bad' : 'ok' },
+      ]
+    : [{ title: 'Dibuat oleh tim D\'Paragon', meta: fmtDateTime(klub.createdAt), note: 'Klub internal, tidak melalui proses pengajuan.', tone: 'done' }];
+
+  return (
+    <div>
+      <DetailBack label="Kembali ke List Klub" onClick={onBack} />
+      <DetailHeader
+        cover={klub.coverImage}
+        badges={<>
+          <StatusBadge status={klub.status} />
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${klub.tipe === 'Internal' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{klub.tipe}</span>
+          {kat && <span className="text-xs text-gray-500">{kat.nama}</span>}
+        </>}
+        title={klub.nama}
+        subtitle={klub.kota || null}
+      />
+      <DetailLayout
+        main={<>
+          <DetailCard title="Deskripsi"><TextBlock>{klub.deskripsi}</TextBlock></DetailCard>
+          <DetailCard title={`Galeri Kegiatan (${(klub.galeri || []).length})`}>
+            {(klub.galeri || []).length === 0 ? <p className="text-sm text-gray-400">Belum ada foto. Tambahkan lewat Master Komunitas.</p> : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {klub.galeri.map((src, i) => <img key={i} src={src} alt="" className="w-full h-28 object-cover rounded-lg" />)}
+              </div>
+            )}
+          </DetailCard>
+          <DetailCard title="Aturan Komunitas">
+            {klub.rules && klub.rules.length > 0
+              ? <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">{klub.rules.map((r, i) => <li key={i}>{r}</li>)}</ol>
+              : <p className="text-sm text-gray-400">Belum ada aturan.</p>}
+          </DetailCard>
+          <DetailCard title={`Anggota (${members.length})`}>
+            {members.length === 0 ? <p className="text-sm text-gray-400">Belum ada anggota.</p> : (
+              <div className="divide-y divide-gray-100">
+                {members.slice(0, 10).map(m => (
+                  <div key={m.id} className="flex items-center justify-between py-2 text-sm">
+                    <div className="min-w-0">
+                      <div className="text-gray-900 truncate">{m.userName || m.userEmail}</div>
+                      {m.userName && <div className="text-xs text-gray-400 truncate">{m.userEmail}</div>}
+                    </div>
+                    <div className="flex items-center gap-3 ml-3">
+                      <span className="text-xs text-gray-400 whitespace-nowrap">Bergabung {fmtDateSafe(m.joinedAt)}</span>
+                      <button onClick={() => setKickTarget(m)} className="text-xs text-red-500 hover:underline">Keluarkan</button>
+                    </div>
+                  </div>
+                ))}
+                {members.length > 10 && <p className="text-xs text-gray-400 pt-2">dan {members.length - 10} anggota lainnya</p>}
+              </div>
+            )}
+          </DetailCard>
+          <DetailCard title={`Event Komunitas (${events.length})`}>
+            {events.length === 0 ? <p className="text-sm text-gray-400">Belum ada event.</p> : (
+              <div className="divide-y divide-gray-100">
+                {events.map(e => (
+                  <div key={e.id} className="flex items-center justify-between py-2 text-sm gap-3">
+                    <div className="min-w-0">
+                      <div className="text-gray-900 truncate">{e.nama}</div>
+                      <div className="text-xs text-gray-400">{fmtRange(e.tanggalMulai, e.tanggalSelesai)}</div>
+                    </div>
+                    <StatusBadge status={e.status} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </DetailCard>
+          <DetailCard title={`Story Terpublikasi (${stories.length})`}>
+            {stories.length === 0 ? <p className="text-sm text-gray-400">Belum ada story.</p> : (
+              <div className="divide-y divide-gray-100">
+                {stories.map(s => (
+                  <div key={s.id} className="py-2 text-sm text-gray-900 truncate">{s.judul}</div>
+                ))}
+              </div>
+            )}
+          </DetailCard>
+        </>}
+        aside={<>
+          <DetailCard title="Informasi Komunitas">
+            <InfoList>
+              <InfoItem label="Jumlah Member">{klub.jumlahMember} member</InfoItem>
+              <InfoItem label="Kota">{klub.kota}</InfoItem>
+              <InfoItem label="Kategori">{kat?.nama}</InfoItem>
+              <InfoItem label="Tipe">{klub.tipe}</InfoItem>
+              <InfoItem label="Admin">{klub.admin}</InfoItem>
+              <InfoItem label="Link WhatsApp">{klub.linkWA && klub.linkWA !== '#' ? <a href={klub.linkWA} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{klub.linkWA}</a> : null}</InfoItem>
+            </InfoList>
+          </DetailCard>
+          {fromPengajuan && (
+            <DetailCard title="Data PIC Pengaju">
+              <InfoList>
+                <InfoItem label="Nama">{klub.picNama}</InfoItem>
+                <InfoItem label="Email">{klub.picEmail}</InfoItem>
+                <InfoItem label="No. HP">{klub.picHp}</InfoItem>
+              </InfoList>
+            </DetailCard>
+          )}
+          <DetailCard title="Riwayat Approval"><Timeline items={riwayat} /></DetailCard>
+          <DetailCard title="Catatan Sistem">
+            <InfoList>
+              <InfoItem label="Dibuat">{fmtDateTime(klub.createdAt)}</InfoItem>
+              <InfoItem label="Diperbarui">{fmtDateTime(klub.updatedAt)}</InfoItem>
+            </InfoList>
+          </DetailCard>
+        </>}
+      />
+      <ConfirmDialog
+        open={!!kickTarget}
+        title="Keluarkan Anggota?"
+        message={`${kickTarget?.userName || kickTarget?.userEmail} akan dikeluarkan dari ${klub.nama}. Anggota masih bisa bergabung lagi dari web.`}
+        confirmLabel="Keluarkan"
+        onConfirm={async () => {
+          await apiCall(`/api/community-members?id=${kickTarget.id}`, 'PATCH', { status: 'left' });
+          await loadData();
+          toast('success', 'Anggota dikeluarkan.');
+          setKickTarget(null);
+        }}
+        onCancel={() => setKickTarget(null)}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DETAIL: PENGAJUAN KLUB
+// ═══════════════════════════════════════════════════════════════
+function PengajuanKlubDetailView({ p, onBack, onApprove, onReject }) {
+  const riwayat = [
+    { title: 'Diajukan', meta: `${fmtDateSafe(p.tanggalAjuan)}${p.namaPIC ? ` · oleh ${p.namaPIC}` : ''}`, tone: 'done' },
+    p.status === 'Pending'
+      ? { title: 'Menunggu keputusan admin', tone: 'wait' }
+      : { title: p.status === 'Approved' ? 'Disetujui' : 'Ditolak', meta: fmtDateTime(p.reviewedAt), note: p.catatan || null, tone: p.status === 'Approved' ? 'ok' : 'bad' },
+  ];
+  return (
+    <div>
+      <DetailBack label="Kembali ke Pengajuan Klub" onClick={onBack} />
+      <DetailHeader
+        badges={<><StatusBadge status={p.status} />{p.kategori && <span className="text-xs text-gray-500">{p.kategori}</span>}</>}
+        title={p.namaKlub}
+        subtitle={`Diajukan ${fmtDateSafe(p.tanggalAjuan)}`}
+      />
+      <DetailLayout
+        main={<>
+          {p.status === 'Rejected' && (
+            <DetailCard title="Alasan Penolakan" tone="danger">
+              <p className="text-sm text-red-700 whitespace-pre-line">{p.catatan || 'Tidak ada alasan yang dicatat.'}</p>
+            </DetailCard>
+          )}
+          <DetailCard title="Deskripsi Komunitas"><TextBlock>{p.deskripsi}</TextBlock></DetailCard>
+          <DetailCard title="Data Pengajuan">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <InfoItem label="Nama Komunitas">{p.namaKlub}</InfoItem>
+              <InfoItem label="Kategori">{p.kategori}</InfoItem>
+              <InfoItem label="Tanggal Diajukan">{fmtDateSafe(p.tanggalAjuan)}</InfoItem>
+              <InfoItem label="Status">{p.status}</InfoItem>
+            </div>
+          </DetailCard>
+          {p.status === 'Approved' && p.catatan && (
+            <DetailCard title="Catatan Admin"><TextBlock>{p.catatan}</TextBlock></DetailCard>
+          )}
+        </>}
+        aside={<>
+          <DetailCard title="Data PIC">
+            <InfoList>
+              <InfoItem label="Nama">{p.namaPIC}</InfoItem>
+              <InfoItem label="Email">{p.emailPIC ? <a href={`mailto:${p.emailPIC}`} className="text-blue-600 hover:underline">{p.emailPIC}</a> : null}</InfoItem>
+              <InfoItem label="No. HP">{p.noHpPIC}</InfoItem>
+            </InfoList>
+          </DetailCard>
+          <DetailCard title="Riwayat"><Timeline items={riwayat} /></DetailCard>
+          <DetailCard title="Catatan Sistem">
+            <InfoList>
+              <InfoItem label="Dibuat">{fmtDateTime(p.createdAt)}</InfoItem>
+              <InfoItem label="Diperbarui">{fmtDateTime(p.updatedAt)}</InfoItem>
+            </InfoList>
+          </DetailCard>
+        </>}
+      />
+      {p.status === 'Pending' && (
+        <ActionBar hint="Baca seluruh detail pengajuan sebelum memutuskan.">
+          <button onClick={onReject} className={btnDangerSoft}><XCircle size={15} /> Reject</button>
+          <button onClick={onApprove} className={btnSuccess}><CheckCircle size={15} /> Approve</button>
+        </ActionBar>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DETAIL: PENGAJUAN EO & SPONSOR
+// ═══════════════════════════════════════════════════════════════
+function LeadDetailView({ lead, onBack, onMarkContacted }) {
+  const isEO = lead.tipe === 'EO';
+  const isPenawaran = !isEO && lead.subTipe === 'Penawaran';
+  return (
+    <div>
+      <DetailBack label="Kembali ke Pengajuan EO & Sponsor" onClick={onBack} />
+      <DetailHeader
+        badges={<>
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${isEO ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>{lead.tipe}</span>
+          {!isEO && <span className="text-xs text-gray-500">{lead.subTipe}</span>}
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_LEAD_COLORS[lead.status] || 'bg-gray-100 text-gray-600'}`}>{lead.status}</span>
+        </>}
+        title={lead.organisasi}
+        subtitle={`Diajukan ${fmtDateSafe(lead.tanggalAjuan)}${lead.pic ? ` · PIC ${lead.pic}` : ''}`}
+      />
+      <DetailLayout
+        main={<>
+          {lead.status === 'Rejected' && (
+            <DetailCard title="Alasan Penolakan" tone="danger">
+              <p className="text-sm text-red-700 whitespace-pre-line">{lead.catatan || 'Tidak ada alasan yang dicatat.'}</p>
+            </DetailCard>
+          )}
+          {!isPenawaran && (
+            <DetailCard title="Deskripsi Acara"><TextBlock>{lead.eventDesc}</TextBlock></DetailCard>
+          )}
+          {!isPenawaran && (
+            <DetailCard title={`Kebutuhan ${lead.tipe}`}><TextBlock>{lead.kebutuhan}</TextBlock></DetailCard>
+          )}
+          {isPenawaran && (
+            <DetailCard title="Benefit yang Ditawarkan"><TextBlock>{lead.benefit}</TextBlock></DetailCard>
+          )}
+          <DetailCard title="Lampiran">
+            {lead.attachment ? (
+              <a href={lead.attachment} download={lead.attachmentName || 'attachment'} className="inline-flex items-center gap-1.5 text-blue-600 hover:underline text-sm">
+                <FileText size={14} /> {lead.attachmentName || 'Unduh file'}
+              </a>
+            ) : <p className="text-sm text-gray-400">Tidak ada lampiran.</p>}
+          </DetailCard>
+        </>}
+        aside={<>
+          <DetailCard title="Kontak">
+            <InfoList>
+              <InfoItem label="PIC">{lead.pic}</InfoItem>
+              <InfoItem label="Email">{lead.email ? <a href={`mailto:${lead.email}`} className="text-blue-600 hover:underline">{lead.email}</a> : null}</InfoItem>
+              <InfoItem label="No. HP">{lead.noHp}</InfoItem>
+              <InfoItem label="Sosmed / Website">{lead.website ? <a href={/^https?:/.test(lead.website) ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{lead.website}</a> : null}</InfoItem>
+            </InfoList>
+          </DetailCard>
+          <DetailCard title={isEO ? 'Jadwal Event' : isPenawaran ? 'Periode Sponsorship' : 'Jadwal'}>
+            <InfoItem label={isEO ? 'Tanggal Event' : 'Periode'}>
+              {isEO ? fmtRange(lead.eventDate, lead.eventDateEnd) : isPenawaran ? fmtRange(lead.sponsorStart, lead.sponsorEnd) : null}
+            </InfoItem>
+          </DetailCard>
+          <DetailCard title="Catatan Sistem">
+            <InfoList>
+              <InfoItem label="Tanggal Diajukan">{fmtDateSafe(lead.tanggalAjuan)}</InfoItem>
+              <InfoItem label="Dibuat">{fmtDateTime(lead.createdAt)}</InfoItem>
+              <InfoItem label="Diperbarui">{fmtDateTime(lead.updatedAt)}</InfoItem>
+            </InfoList>
+          </DetailCard>
+        </>}
+      />
+      {lead.status === 'Pending Review' && (
+        <ActionBar hint="Tandai dihubungi setelah tim menghubungi PIC.">
+          <button onClick={onMarkContacted} className={btnPrimary}>Tandai Dihubungi</button>
+        </ActionBar>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STORY: bantu bersama (List Stories & Pengajuan Story)
+// ═══════════════════════════════════════════════════════════════
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const storyRelasiLabel = (state, story) => {
+  if (story.tipeRelasi === 'Event') {
+    const ev = state.events.find(e => e.id === story.relatedEventId);
+    return ev ? ev.nama : `Event #${story.relatedEventId}`;
+  }
+  if (story.tipeRelasi === 'Komunitas') {
+    const kom = state.komunitas.find(k => k.id === story.relatedKomunitasId);
+    return kom ? kom.nama : `Komunitas #${story.relatedKomunitasId}`;
+  }
+  return '—';
+};
+
+const storyToForm = (story) => ({
+  judul: story.judul,
+  tipeRelasi: story.tipeRelasi,
+  relatedEventId: story.relatedEventId ? String(story.relatedEventId) : '',
+  relatedKomunitasId: story.relatedKomunitasId ? String(story.relatedKomunitasId) : '',
+  kategori: story.kategori,
+  tags: story.tags || '',
+  penulis: story.penulis || '',
+  coverImage: story.coverImage || '',
+  konten: story.konten || '',
+  tanggalPublish: story.tanggalPublish || '',
+  tayangSelesai: story.tayangSelesai || '',
+  status: story.status,
+  alasanTolak: story.alasanTolak || '',
+});
+
+// Form tambah / edit story. Dipasang hanya saat dibuka (mount = buka).
+function StoryFormModal({ mode, story, state, toast, loadData, onClose }) {
+  const [form, setForm] = useState(() => (story ? storyToForm(story) : EMPTY_STORY_FORM));
+  const [formErrors, setFormErrors] = useState({});
+  // Story eksternal (dari form pengajuan publik) & internal (dibuat admin
+  // sendiri) punya pilihan status yang berbeda — lihat Field "Status" di bawah.
+  const isExternalStory = mode === 'edit' && story.origin === 'Eksternal';
+
+  const applyEventPrefill = (evId, currentForm) => {
+    if (!evId) return currentForm;
+    const ev = state.events.find(e => e.id === Number(evId));
+    if (!ev) return currentForm;
+    const judulPrefix = 'Recap: ';
+    return {
+      ...currentForm,
+      judul: currentForm.judul === '' || currentForm.judul.startsWith(judulPrefix) ? `${judulPrefix}${ev.nama}` : currentForm.judul,
+      tanggalPublish: currentForm.tanggalPublish === '' ? ev.tanggalSelesai : currentForm.tanggalPublish,
+      kategori: currentForm.kategori === 'Umum' ? 'Rekap Event' : currentForm.kategori,
+    };
+  };
+
+  const applyKomunitasPrefill = (komId, currentForm) => {
+    if (!komId) return currentForm;
+    const kom = state.komunitas.find(k => k.id === Number(komId));
+    if (!kom) return currentForm;
+    const judulPrefix = 'Spotlight: ';
+    return {
+      ...currentForm,
+      judul: currentForm.judul === '' || currentForm.judul.startsWith(judulPrefix) ? `${judulPrefix}${kom.nama}` : currentForm.judul,
+      kategori: currentForm.kategori === 'Umum' ? 'Komunitas' : currentForm.kategori,
+    };
+  };
+
+  const validate = () => {
+    const e = {};
+    if (!form.judul.trim()) e.judul = 'Judul wajib diisi';
+    if (form.tipeRelasi === 'Event' && !form.relatedEventId) e.relatedEventId = 'Pilih event terkait';
+    if (form.tipeRelasi === 'Komunitas' && !form.relatedKomunitasId) e.relatedKomunitasId = 'Pilih komunitas terkait';
+    if (isExternalStory && form.status === 'Rejected' && !form.alasanTolak.trim()) e.alasanTolak = 'Alasan penolakan wajib diisi';
+    return e;
+  };
+
+  const handleSave = async () => {
+    const e = validate();
+    if (Object.keys(e).length) { setFormErrors(e); return; }
+    const data = {
+      ...form,
+      relatedEventId: form.relatedEventId ? Number(form.relatedEventId) : null,
+      relatedKomunitasId: form.relatedKomunitasId ? Number(form.relatedKomunitasId) : null,
+      // Halaman customer memakai tanggal tayang; isi hari ini bila publish tanpa tanggal.
+      tanggalPublish: form.status === 'Published' && !form.tanggalPublish ? todayISO() : form.tanggalPublish,
+    };
+    if (mode === 'add') {
+      // Story yang dibuat langsung dari admin selalu berasal internal (tim
+      // D'Paragon sendiri), beda dari yang masuk lewat form pengajuan publik.
+      await apiCall(`/api/stories`, 'POST', { ...toApiStory(data), origin: 'internal' });
+      toast('success', 'Story berhasil ditambahkan!');
+    } else {
+      await apiCall(`/api/stories?id=${story.id}`, 'PATCH', { ...toApiStory(data), notes: form.status === 'Rejected' ? form.alasanTolak.trim() : null });
+      toast('success', 'Story berhasil diperbarui!');
+    }
+    await loadData();
+    onClose();
+  };
+
+  return (
+    <Modal open title={mode === 'add' ? 'Tambah Story Baru' : 'Edit Story'} onClose={onClose} size="lg">
+      <div className="space-y-4">
+        <Field label="Tipe Relasi *">
+          <FSelect value={form.tipeRelasi} onChange={e => {
+            const newTipe = e.target.value;
+            setForm(f => ({ ...f, tipeRelasi: newTipe, relatedEventId: '', relatedKomunitasId: '', tanggalPublish: newTipe !== f.tipeRelasi ? '' : f.tanggalPublish }));
+          }}>
+            <option value="Event">Event</option>
+            <option value="Komunitas">Komunitas</option>
+            <option value="Umum">Umum (artikel biasa)</option>
+          </FSelect>
+        </Field>
+
+        {form.tipeRelasi === 'Event' && (
+          <Field label="Event Terkait *" error={formErrors.relatedEventId}>
+            <FSelect value={form.relatedEventId} onChange={e => {
+              const evId = e.target.value;
+              setForm(f => applyEventPrefill(evId, { ...f, relatedEventId: evId }));
+            }}>
+              <option value="">— Pilih Event —</option>
+              {state.events.map(ev => (
+                <option key={ev.id} value={ev.id}>{ev.nama} ({ev.status})</option>
+              ))}
+            </FSelect>
+          </Field>
+        )}
+
+        {form.tipeRelasi === 'Komunitas' && (
+          <Field label="Komunitas Terkait *" error={formErrors.relatedKomunitasId}>
+            <FSelect value={form.relatedKomunitasId} onChange={e => {
+              const komId = e.target.value;
+              setForm(f => applyKomunitasPrefill(komId, { ...f, relatedKomunitasId: komId }));
+            }}>
+              <option value="">— Pilih Komunitas —</option>
+              {state.komunitas.map(k => (
+                <option key={k.id} value={k.id}>{k.nama} ({k.kota})</option>
+              ))}
+            </FSelect>
+          </Field>
+        )}
+
+        <Field label="Judul *" error={formErrors.judul}>
+          <FInput value={form.judul} onChange={e => setForm(f => ({ ...f, judul: e.target.value }))} placeholder="Judul artikel / recap / spotlight" />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Kategori">
+            <FSelect value={form.kategori} onChange={e => setForm(f => ({ ...f, kategori: e.target.value }))}>
+              {STORY_KATEGORI.map(k => <option key={k} value={k}>{k}</option>)}
+            </FSelect>
+          </Field>
+          <Field label="Tags (pisah koma)">
+            <FInput value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="bisnis, networking, recap" />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Penulis">
+            <FInput value={form.penulis} onChange={e => setForm(f => ({ ...f, penulis: e.target.value }))} placeholder="Nama penulis atau tim redaksi" />
+          </Field>
+          <Field label="Cover Image">
+            <ImageUploadField value={form.coverImage} onChange={v => setForm(f => ({ ...f, coverImage: v }))} />
+          </Field>
+        </div>
+
+        <Field label="Konten">
+          <FTextarea value={form.konten} onChange={e => setForm(f => ({ ...f, konten: e.target.value }))} rows={6} placeholder="Tulis isi artikel di sini..." />
+        </Field>
+
+        <Field label="Periode Tayang">
+          <DateRangeField
+            startValue={form.tanggalPublish}
+            endValue={form.tayangSelesai}
+            onChange={(start, end) => setForm(f => ({ ...f, tanggalPublish: start, tayangSelesai: end }))}
+          />
+        </Field>
+
+        <Field label="Status">
+          <FSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+            {isExternalStory ? (
+              <>
+                {story.status === 'Pending Approval' && <option value="Pending Approval">Pending Approval (dari pengajuan web)</option>}
+                <option value="Published">Published</option>
+                <option value="Rejected">Rejected</option>
+              </>
+            ) : (
+              <>
+                <option value="Draft">Draft</option>
+                <option value="Published">Published</option>
+              </>
+            )}
+          </FSelect>
+          {form.status === 'Pending Approval' && (
+            <p className="mt-1.5 text-xs text-gray-400">Pilih Published atau Rejected untuk menindaklanjuti pengajuan ini.</p>
+          )}
+        </Field>
+
+        {isExternalStory && form.status === 'Rejected' && (
+          <Field label="Alasan Penolakan *" error={formErrors.alasanTolak}>
+            <FTextarea value={form.alasanTolak} onChange={e => { setForm(f => ({ ...f, alasanTolak: e.target.value })); setFormErrors(er => ({ ...er, alasanTolak: undefined })); }} rows={3} placeholder="Contoh: Konten belum sesuai pedoman komunitas..." />
+            <p className="mt-1.5 text-xs text-gray-400">Alasan ini ditampilkan ke pengaju di halaman Status Pengajuan.</p>
+          </Field>
+        )}
+
+        {isExternalStory && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5">
+            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Kontak Pengaju (via Ajukan Story)</p>
+            <p className="text-sm text-blue-700">{story.submitterEmail || '-'} · {story.submitterPhone || '-'}</p>
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-2">
+          <button onClick={onClose} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
+          <button onClick={handleSave} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm hover:bg-blue-700">
+            {mode === 'add' ? 'Simpan Story' : 'Perbarui Story'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DETAIL: STORY (List Stories & Pengajuan Story)
+// showOrigin=false di Pengajuan Story: semua yang tampil di sana eksternal,
+// jadi labelnya tidak perlu diulang.
+// ═══════════════════════════════════════════════════════════════
+function StoryDetailView({ story, state, backLabel, onBack, onEdit, showOrigin = true }) {
+  const external = story.origin === 'Eksternal';
+  const riwayat = external
+    ? [
+        { title: 'Diajukan via web customer', meta: fmtDateTime(story.createdAt), tone: 'done' },
+        story.status === 'Pending Approval'
+          ? { title: 'Menunggu kurasi admin', tone: 'wait' }
+          : story.status === 'Rejected'
+            ? { title: 'Ditolak', meta: fmtDateTime(story.updatedAt), note: story.alasanTolak || null, tone: 'bad' }
+            : { title: 'Disetujui & dipublish', meta: fmtDateTime(story.updatedAt), tone: 'ok' },
+      ]
+    : [{ title: 'Dibuat oleh tim D\'Paragon', meta: fmtDateTime(story.createdAt), tone: 'done' }];
+
+  return (
+    <div>
+      <DetailBack label={backLabel} onClick={onBack} />
+      <DetailHeader
+        cover={story.coverImage}
+        badges={<>
+          <StatusBadge status={story.status} />
+          {showOrigin && <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${external ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{story.origin}</span>}
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${story.tipeRelasi === 'Event' ? 'bg-purple-100 text-purple-700' : story.tipeRelasi === 'Komunitas' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>{story.tipeRelasi}</span>
+          {story.kategori && story.kategori !== story.tipeRelasi && <span className="text-xs text-gray-500">{story.kategori}</span>}
+        </>}
+        title={story.judul}
+        subtitle={story.penulis ? `Oleh ${story.penulis}` : null}
+      />
+      <DetailLayout
+        main={<>
+          {story.status === 'Rejected' && (
+            <DetailCard title="Alasan Penolakan" tone="danger">
+              <p className="text-sm text-red-700 whitespace-pre-line">{story.alasanTolak || 'Tidak ada alasan yang dicatat.'}</p>
+            </DetailCard>
+          )}
+          <DetailCard title="Isi Story"><TextBlock empty="Belum ada isi.">{story.konten}</TextBlock></DetailCard>
+          <DetailCard title="Tags"><ChipList items={story.tags ? story.tags.split(',').map(t => t.trim()).filter(Boolean) : []} empty="Tidak ada tag." /></DetailCard>
+        </>}
+        aside={<>
+          <DetailCard title="Informasi Story">
+            <InfoList>
+              <InfoItem label="Penulis">{story.penulis}</InfoItem>
+              <InfoItem label="Tipe Relasi">{story.tipeRelasi}</InfoItem>
+              {story.tipeRelasi !== 'Umum' && (
+                <InfoItem label={story.tipeRelasi === 'Event' ? 'Event Terkait' : 'Komunitas Terkait'}>{storyRelasiLabel(state, story)}</InfoItem>
+              )}
+              <InfoItem label="Kategori">{story.kategori}</InfoItem>
+              <InfoItem label="Periode Tayang">{story.tanggalPublish ? fmtRange(story.tanggalPublish, story.tayangSelesai) : null}</InfoItem>
+            </InfoList>
+          </DetailCard>
+          {external && (
+            <DetailCard title="Kontak Pengaju">
+              <InfoList>
+                <InfoItem label="Email">{story.submitterEmail ? <a href={`mailto:${story.submitterEmail}`} className="text-blue-600 hover:underline">{story.submitterEmail}</a> : null}</InfoItem>
+                <InfoItem label="No. HP">{story.submitterPhone}</InfoItem>
+              </InfoList>
+            </DetailCard>
+          )}
+          <DetailCard title="Riwayat"><Timeline items={riwayat} /></DetailCard>
+          <DetailCard title="Catatan Sistem">
+            <InfoList>
+              <InfoItem label="Dibuat">{fmtDateTime(story.createdAt)}</InfoItem>
+              <InfoItem label="Diperbarui">{fmtDateTime(story.updatedAt)}</InfoItem>
+            </InfoList>
+          </DetailCard>
+        </>}
+      />
+      <ActionBar hint={story.status === 'Pending Approval' ? 'Baca isi story lebih dulu. Ubah status lewat Edit.' : null}>
+        <button onClick={onEdit} className={btnPrimary}><Edit2 size={14} /> Edit</button>
+      </ActionBar>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DETAIL: EVENT (List Event)
+// ═══════════════════════════════════════════════════════════════
+function EventDetailView({ ev, state, onBack, actions }) {
+  const kat = state.kategoriEvent.find(k => k.id === Number(ev.kategoriEventId));
+  const venue = state.venue.find(v => v.id === Number(ev.venueId));
+  const komunitas = state.komunitas.find(k => k.id === Number(ev.komunitasId));
+  const pendaftar = ev.pendaftar || 0;
+  const persen = ev.kuota > 0 ? Math.min(100, Math.round((pendaftar / ev.kuota) * 100)) : 0;
+  const jam = ev.jamMulai ? `${String(ev.jamMulai).slice(0, 5)}${ev.jamSelesai ? ` – ${String(ev.jamSelesai).slice(0, 5)}` : ''} WIB` : null;
+  const orgNames = (ev.organizers || []).map(o => o.organizer_name).filter(Boolean);
+  const spNames = (ev.sponsors || []).map(s => s.sponsor_name).filter(Boolean);
+  const agenda = (ev.agenda || []).filter(a => a.activity || a.kegiatan);
+
+  return (
+    <div>
+      <DetailBack label="Kembali ke List Event" onClick={onBack} />
+      <DetailHeader
+        cover={ev.coverImage}
+        badges={<>
+          <StatusBadge status={ev.status} />
+          {kat && <span className="text-xs text-gray-500">{kat.nama}</span>}
+          {komunitas && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{komunitas.nama}</span>}
+        </>}
+        title={ev.nama}
+        subtitle={`${fmtRange(ev.tanggalMulai, ev.tanggalSelesai)}${venue ? ` · ${venue.nama}` : ''}`}
+      />
+      <DetailLayout
+        main={<>
+          <DetailCard title="Deskripsi"><TextBlock>{ev.deskripsi}</TextBlock></DetailCard>
+          <DetailCard title="Agenda Acara">
+            {agenda.length === 0 ? <p className="text-sm text-gray-400">Belum ada agenda.</p> : (
+              <div className="divide-y divide-gray-100">
+                {agenda.map((a, i) => (
+                  <div key={i} className="flex gap-4 py-2 text-sm">
+                    <div className="w-14 text-gray-400 shrink-0 tabular-nums">{String(a.time ?? a.jam ?? '').slice(0, 5) || '—'}</div>
+                    <div className="text-gray-900">{a.activity ?? a.kegiatan}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </DetailCard>
+          <DetailCard title="Fasilitas yang Didapat"><ChipList items={ev.fasilitas} empty="Belum ada fasilitas." /></DetailCard>
+          <DetailCard title="Aturan Event">
+            {ev.rules && ev.rules.length > 0
+              ? <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">{ev.rules.map((r, i) => <li key={i}>{r}</li>)}</ol>
+              : <p className="text-sm text-gray-400">Belum ada aturan.</p>}
+          </DetailCard>
+        </>}
+        aside={<>
+          <DetailCard title="Jadwal & Lokasi">
+            <InfoList>
+              <InfoItem label="Tanggal">{fmtRange(ev.tanggalMulai, ev.tanggalSelesai)}</InfoItem>
+              <InfoItem label="Jam">{jam}</InfoItem>
+              <InfoItem label="Venue">{venue?.nama}</InfoItem>
+              <InfoItem label="Alamat">{venue ? `${venue.alamat}${venue.kota ? `, ${venue.kota}` : ''}` : null}</InfoItem>
+              <InfoItem label="Peta">{venue?.mapsLink ? <a href={venue.mapsLink} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Buka Google Maps</a> : null}</InfoItem>
+            </InfoList>
+          </DetailCard>
+          <DetailCard title="Kuota & Harga">
+            <div className="flex items-baseline justify-between mb-1.5">
+              <span className="text-2xl font-bold text-gray-900">{fmt(pendaftar)}<span className="text-sm font-normal text-gray-400"> / {fmt(ev.kuota)}</span></span>
+              <span className="text-xs text-gray-400">{persen}% terisi</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-4"><div className="h-full bg-blue-500" style={{ width: `${persen}%` }} /></div>
+            <InfoList>
+              <InfoItem label="Sisa Kuota">{fmt(Math.max(0, ev.kuota - pendaftar))} orang</InfoItem>
+              <InfoItem label="Harga">{ev.harga === 0 ? 'Gratis' : `Rp ${fmt(ev.harga)}`}</InfoItem>
+            </InfoList>
+          </DetailCard>
+          <DetailCard title="Pihak Terkait">
+            <InfoList>
+              <InfoItem label="Organizer (Komunitas)">{komunitas?.nama || (orgNames.length ? orgNames.join(', ') : "D'Paragon Community Team")}</InfoItem>
+              <InfoItem label="Sponsor / Partner">{ev.sponsorText || (spNames.length ? spNames.join(', ') : null)}</InfoItem>
+            </InfoList>
+          </DetailCard>
+          <DetailCard title="Catatan Sistem">
+            <InfoList>
+              <InfoItem label="Dibuat">{fmtDateTime(ev.createdAt)}</InfoItem>
+              <InfoItem label="Diperbarui">{fmtDateTime(ev.updatedAt)}</InfoItem>
+            </InfoList>
+          </DetailCard>
+        </>}
+      />
+      <ActionBar hint="Aksi yang tersedia mengikuti status event.">{actions}</ActionBar>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FORM EVENT (satu form untuk Buat Event & Edit Event, dari list maupun detail)
+// ═══════════════════════════════════════════════════════════════
+const blankEventForm = (state) => ({
+  nama: '', deskripsi: '', kategoriEventId: String(state.kategoriEvent[0]?.id || ''),
+  venueId: String(state.venue[0]?.id || ''), komunitasId: '', sponsor: '',
+  tanggalMulai: '', tanggalSelesai: '', jamMulai: '', jamSelesai: '', kuota: '', harga: '',
+  coverImage: '', agenda: [], fasilitas: [], rules: [],
+});
+
+const eventToForm = (ev) => ({
+  nama: ev.nama, deskripsi: ev.deskripsi || '', kategoriEventId: String(ev.kategoriEventId ?? ''),
+  venueId: String(ev.venueId ?? ''), komunitasId: ev.komunitasId ? String(ev.komunitasId) : '',
+  sponsor: ev.sponsorText || '',
+  tanggalMulai: ev.tanggalMulai ? String(ev.tanggalMulai).slice(0, 10) : '',
+  tanggalSelesai: ev.tanggalSelesai ? String(ev.tanggalSelesai).slice(0, 10) : '',
+  jamMulai: ev.jamMulai ? String(ev.jamMulai).slice(0, 5) : '', jamSelesai: ev.jamSelesai ? String(ev.jamSelesai).slice(0, 5) : '',
+  kuota: String(ev.kuota ?? ''), harga: String(ev.harga ?? ''),
+  coverImage: ev.coverImage || '',
+  agenda: (ev.agenda || []).map(a => ({ jam: a.jam ?? '', kegiatan: a.kegiatan ?? '' })),
+  fasilitas: [...(ev.fasilitas || [])], rules: [...(ev.rules || [])],
+});
+
+function ListInput({ label, items, onChange, placeholder, addLabel }) {
+  return (
+    <div>
+      <div className="text-sm font-medium text-gray-700 mb-2">{label}</div>
+      <div className="space-y-2 mb-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <FInput className="flex-1" value={item} placeholder={placeholder} onChange={e => onChange(items.map((r, j) => j === i ? e.target.value : r))} />
+            <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"><X size={14} /></button>
+          </div>
+        ))}
+      </div>
+      <button type="button" onClick={() => onChange([...items, ''])} className="text-xs text-blue-600 hover:underline">{addLabel}</button>
+    </div>
+  );
+}
+
+function EventFormModal({ mode, event, state, toast, loadData, onClose }) {
+  const [form, setForm] = useState(() => (event ? eventToForm(event) : blankEventForm(state)));
+  const [errors, setErrors] = useState({});
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const validate = () => {
+    const e = {};
+    if (!form.nama.trim()) e.nama = 'Nama event wajib diisi';
+    if (!form.tanggalMulai) e.tanggalMulai = 'Tanggal mulai wajib diisi';
+    if (!form.tanggalSelesai) e.tanggalSelesai = 'Tanggal selesai wajib diisi';
+    if (form.tanggalMulai && form.tanggalSelesai && form.tanggalSelesai < form.tanggalMulai) e.tanggalSelesai = 'Tanggal selesai tidak boleh sebelum tanggal mulai';
+    if (!form.kuota || isNaN(Number(form.kuota)) || Number(form.kuota) <= 0) e.kuota = 'Kuota harus berupa angka positif';
+    if (form.harga === '' || isNaN(Number(form.harga)) || Number(form.harga) < 0) e.harga = 'Harga tidak valid (0 untuk gratis)';
+    return e;
+  };
+
+  const handleSubmit = async () => {
+    const e = validate();
+    if (Object.keys(e).length) { setErrors(e); return; }
+    const clean = (arr) => arr.map(s => s.trim()).filter(Boolean);
+    const payload = {
+      ...toApiEvent({
+        ...form,
+        kategoriEventId: Number(form.kategoriEventId), venueId: Number(form.venueId),
+        kuota: Number(form.kuota), harga: Number(form.harga),
+        fasilitas: clean(form.fasilitas), rules: clean(form.rules),
+        status: mode === 'add' ? 'Draft' : event.status,
+      }),
+      // Sponsor ditulis sebagai teks bebas (belum terhubung ke master sponsor).
+      sponsor_name: form.sponsor.trim() || null,
+    };
+    let id;
+    if (mode === 'add') {
+      const created = await apiCall(`/api/events`, 'POST', payload);
+      id = created.id;
+    } else {
+      await apiCall(`/api/events?id=${event.id}`, 'PATCH', payload);
+      id = event.id;
+    }
+    // Rundown disimpan lewat endpoint agenda (tabel terpisah).
+    await apiCall(`/api/events?id=${id}&action=agenda`, 'PATCH', {
+      agenda: form.agenda
+        .filter(r => r.kegiatan.trim())
+        .map((r, i) => ({ time: r.jam || null, activity: r.kegiatan.trim(), order: i })),
+    });
+    await loadData();
+    toast('success', mode === 'add' ? 'Event berhasil dibuat' : 'Event berhasil diperbarui');
+    onClose();
+  };
+
+  return (
+    <Modal open title={mode === 'add' ? 'Buat Event Baru' : 'Edit Event'} onClose={onClose} size="lg">
+      <div className="space-y-4">
+        <Field label="Nama Event *" error={errors.nama}><FInput value={form.nama} onChange={e => set('nama', e.target.value)} placeholder="Nama event" /></Field>
+        <Field label="Deskripsi"><FTextarea value={form.deskripsi} onChange={e => set('deskripsi', e.target.value)} rows={3} /></Field>
+        <Field label="Foto Event"><ImageUploadField value={form.coverImage} onChange={v => set('coverImage', v)} /></Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Kategori Event"><FSelect value={form.kategoriEventId} onChange={e => set('kategoriEventId', e.target.value)}>{state.kategoriEvent.map(k => <option key={k.id} value={k.id}>{k.nama}</option>)}</FSelect></Field>
+          <Field label="Venue"><FSelect value={form.venueId} onChange={e => set('venueId', e.target.value)}>{state.venue.map(v => <option key={v.id} value={v.id}>{v.nama}</option>)}</FSelect></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Tanggal Mulai *" error={errors.tanggalMulai}><FInput type="date" value={form.tanggalMulai} onChange={e => set('tanggalMulai', e.target.value)} /></Field>
+          <Field label="Tanggal Selesai *" error={errors.tanggalSelesai}><FInput type="date" value={form.tanggalSelesai} onChange={e => set('tanggalSelesai', e.target.value)} /></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Jam Mulai"><FInput type="time" value={form.jamMulai} onChange={e => set('jamMulai', e.target.value)} /></Field>
+          <Field label="Jam Selesai"><FInput type="time" value={form.jamSelesai} onChange={e => set('jamSelesai', e.target.value)} /></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Organizer (Komunitas)">
+            <FSelect value={form.komunitasId} onChange={e => set('komunitasId', e.target.value)}>
+              <option value="">D'Paragon Community Team</option>
+              {state.komunitas.map(k => <option key={k.id} value={k.id}>{k.nama}</option>)}
+            </FSelect>
+          </Field>
+          <Field label="Sponsor / Partner"><FInput value={form.sponsor} onChange={e => set('sponsor', e.target.value)} placeholder="Kosongkan bila tidak ada" /></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Kuota (orang) *" error={errors.kuota}><FInput type="number" value={form.kuota} onChange={e => set('kuota', e.target.value)} placeholder="100" /></Field>
+          <Field label="Harga (0 = gratis) *" error={errors.harga}><FInput type="number" value={form.harga} onChange={e => set('harga', e.target.value)} placeholder="75000" /></Field>
+        </div>
+
+        <div>
+          <div className="text-sm font-medium text-gray-700 mb-2">Rundown Acara</div>
+          <div className="space-y-2 mb-2">
+            {form.agenda.map((row, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <FInput type="time" value={row.jam} style={{ width: 110 }} onChange={e => set('agenda', form.agenda.map((r, j) => j === i ? { ...r, jam: e.target.value } : r))} />
+                <FInput className="flex-1" value={row.kegiatan} placeholder="Kegiatan..." onChange={e => set('agenda', form.agenda.map((r, j) => j === i ? { ...r, kegiatan: e.target.value } : r))} />
+                <button type="button" onClick={() => set('agenda', form.agenda.filter((_, j) => j !== i))} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"><X size={14} /></button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => set('agenda', [...form.agenda, { jam: '', kegiatan: '' }])} className="text-xs text-blue-600 hover:underline">+ Tambah Sesi</button>
+        </div>
+
+        <ListInput label="Fasilitas yang Didapat" items={form.fasilitas} onChange={v => set('fasilitas', v)} placeholder="Fasilitas..." addLabel="+ Tambah Fasilitas" />
+        <ListInput label="Aturan Event" items={form.rules} onChange={v => set('rules', v)} placeholder="Aturan..." addLabel="+ Tambah Aturan" />
+
+        <div className="flex gap-3 pt-2">
+          <button onClick={onClose} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
+          <button onClick={handleSubmit} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm hover:bg-blue-700">Simpan</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // SIDEBAR
 // ═══════════════════════════════════════════════════════════════
 const NAV_STRUCTURE = [
@@ -524,6 +1467,7 @@ const NAV_STRUCTURE = [
     section: 'Manajemen Stories', icon: <FileText size={15} />,
     items: [
       { key: 'stories-list', label: 'List Stories', icon: <FileText size={15} /> },
+      { key: 'stories-pengajuan', label: 'Pengajuan Story', icon: <FileText size={15} /> },
     ],
   },
   {
@@ -575,7 +1519,7 @@ function Sidebar({ currentPage, onNav, pendingPengajuan, pendingReviews, pending
                     {key === 'partnership-leads' && pendingLeads > 0 && (
                       <span className="bg-yellow-400 text-yellow-900 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{pendingLeads}</span>
                     )}
-                    {key === 'stories-list' && pendingStories > 0 && (
+                    {key === 'stories-pengajuan' && pendingStories > 0 && (
                       <span className="bg-yellow-400 text-yellow-900 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{pendingStories}</span>
                     )}
                   </button>
@@ -1225,14 +2169,7 @@ function KomunitasPage({ state, dispatch, toast, loadData }) {
 // PAGE: LIST EVENT
 // ═══════════════════════════════════════════════════════════════
 function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
-  const blankForm = () => ({
-    nama: '', deskripsi: '', kategoriEventId: String(state.kategoriEvent[0]?.id || ''),
-    venueId: String(state.venue[0]?.id || ''), tanggalMulai: '', tanggalSelesai: '', kuota: '', harga: '',
-    coverImage: '', jamMulai: '', jamSelesai: '', organizer: '', sponsor: '', agenda: [], fasilitas: [],
-  });
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState(blankForm());
-  const [errors, setErrors] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [statusAction, setStatusAction] = useState(null);
   const [filterStatus, setFilterStatus] = useState('Semua');
@@ -1255,48 +2192,12 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
     (dateTo === '' || e.tanggalMulai <= dateTo)
   );
 
-  const openAdd = () => { setForm(blankForm()); setErrors({}); setModal({ mode: 'add' }); };
-  const openEdit = (item) => {
-    setForm({
-      nama: item.nama, deskripsi: item.deskripsi, kategoriEventId: String(item.kategoriEventId),
-      venueId: String(item.venueId), tanggalMulai: item.tanggalMulai, tanggalSelesai: item.tanggalSelesai,
-      kuota: String(item.kuota), harga: String(item.harga),
-      coverImage: item.coverImage || '', jamMulai: item.jamMulai || '', jamSelesai: item.jamSelesai || '',
-      organizer: item.organizer || '', sponsor: item.sponsor || '',
-      agenda: item.agenda || [], fasilitas: item.fasilitas || [],
-    });
-    setErrors({});
-    setModal({ mode: 'edit', data: item });
-  };
+  const openAdd = () => setModal({ mode: 'add' });
+  const openEdit = (item) => setModal({ mode: 'edit', data: item });
 
-  const validate = () => {
-    const e = {};
-    if (!form.nama.trim()) e.nama = 'Nama event wajib diisi';
-    if (!form.tanggalMulai) e.tanggalMulai = 'Tanggal mulai wajib diisi';
-    if (!form.tanggalSelesai) e.tanggalSelesai = 'Tanggal selesai wajib diisi';
-    if (!form.kuota || isNaN(Number(form.kuota)) || Number(form.kuota) <= 0) e.kuota = 'Kuota harus berupa angka positif';
-    if (form.harga === '' || isNaN(Number(form.harga)) || Number(form.harga) < 0) e.harga = 'Harga tidak valid (0 untuk gratis)';
-    return e;
-  };
-
-  const handleSubmit = async () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
-    const data = {
-      ...form,
-      kategoriEventId: Number(form.kategoriEventId), venueId: Number(form.venueId),
-      kuota: Number(form.kuota), harga: Number(form.harga),
-      agenda: form.agenda, fasilitas: form.fasilitas,
-    };
-    if (modal.mode === 'add') { await apiCall(`/api/events`, 'POST', toApiEvent({ ...data, status: 'Draft' })); await loadData(); toast('success', 'Event berhasil dibuat'); }
-    else {
-      const updated = { ...modal.data, ...data };
-      await apiCall(`/api/events?id=${updated.id}`, 'PATCH', toApiEvent(updated)); await loadData();
-      if (detail?.id === modal.data.id) setDetail(updated);
-      toast('success', 'Event berhasil diperbarui');
-    }
-    setModal(null);
-  };
+  const eventModalEl = modal && (
+    <EventFormModal mode={modal.mode} event={modal.data} state={state} toast={toast} loadData={loadData} onClose={() => setModal(null)} />
+  );
 
   const handleStatusChange = async (ev, newStatus) => {
     await apiCall(`/api/events?id=${ev.id}&action=status`, 'PATCH', { status: newStatus }); await loadData();
@@ -1317,92 +2218,22 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
     const ev = state.events.find(x => x.id === detail.id) || detail;
     return (
       <div>
-        <button onClick={() => setDetail(null)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-5 group">
-          <ArrowLeft size={15} className="group-hover:-translate-x-0.5 transition-transform" /> Kembali ke List Event
-        </button>
-        <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-2xl">
-          <div className="flex items-start justify-between mb-5">
-            <div>
-              <div className="flex items-center gap-2 mb-1"><StatusBadge status={ev.status} /><span className="text-xs text-gray-400">{getKatEvent(ev.kategoriEventId)?.nama}</span></div>
-              <h1 className="text-lg font-bold text-gray-900">{ev.nama}</h1>
-            </div>
-            <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
-              {ev.status === 'Draft' && <button onClick={() => setStatusAction({ event: ev, newStatus: 'Registration Open' })} className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700">Open Registration</button>}
-              {ev.status === 'Registration Open' && <button onClick={() => setStatusAction({ event: ev, newStatus: 'Check-in' })} className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700">Start Check-in</button>}
-              {ev.status === 'Check-in' && <button onClick={() => setStatusAction({ event: ev, newStatus: 'Recap Pending' })} className="px-3 py-1.5 bg-yellow-500 text-white text-xs rounded-lg hover:bg-yellow-600">Close Event</button>}
-              {ev.status === 'Recap Pending' && <button onClick={() => setStatusAction({ event: ev, newStatus: 'Recap Published' })} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">Publish Recap</button>}
-              {ev.status === 'Registration Open' && <button onClick={() => setStatusAction({ event: ev, newStatus: 'Cancelled' })} className="px-3 py-1.5 bg-red-100 text-red-600 text-xs rounded-lg hover:bg-red-200">Cancel</button>}
-              {(ev.status === 'Draft' || ev.status === 'Registration Open') && <button onClick={() => openEdit(ev)} className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"><Edit2 size={13} /> Edit</button>}
-              <button onClick={() => onNav('event-partisipan', ev.id)} className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"><Users size={13} /> Partisipan</button>
-              {ev.status === 'Draft' && <button onClick={() => setDeleteTarget(ev)} className="flex items-center gap-1 px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"><Trash2 size={13} /> Hapus</button>}
-            </div>
-          </div>
-          <div className="space-y-4 text-sm">
-            <div><p className="text-xs text-gray-400 mb-0.5">Deskripsi</p><p className="text-gray-700 leading-relaxed">{ev.deskripsi}</p></div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><p className="text-xs text-gray-400 mb-0.5">Tanggal</p><p className="font-medium text-gray-900">{fmtDate(ev.tanggalMulai)}{ev.tanggalMulai !== ev.tanggalSelesai ? ` – ${fmtDate(ev.tanggalSelesai)}` : ''}</p></div>
-              <div><p className="text-xs text-gray-400 mb-0.5">Venue</p><p className="font-medium text-gray-900">{getVenue(ev.venueId)?.nama}</p></div>
-              <div><p className="text-xs text-gray-400 mb-0.5">Kuota</p><p className="font-medium text-gray-900">{fmt(ev.kuota)} orang</p></div>
-              <div><p className="text-xs text-gray-400 mb-0.5">Harga</p><p className="font-medium text-gray-900">{ev.harga === 0 ? 'Gratis' : `Rp ${fmt(ev.harga)}`}</p></div>
-            </div>
-          </div>
-        </div>
-        <Modal open={!!modal} title="Edit Event" onClose={() => setModal(null)} size="lg">
-          <div className="space-y-4">
-            <Field label="Nama Event *" error={errors.nama}><FInput value={form.nama} onChange={e => setForm(p => ({ ...p, nama: e.target.value }))} /></Field>
-            <Field label="Deskripsi"><FTextarea value={form.deskripsi} onChange={e => setForm(p => ({ ...p, deskripsi: e.target.value }))} rows={3} /></Field>
-            <Field label="Foto Event"><ImageUploadField value={form.coverImage} onChange={v => setForm(p => ({ ...p, coverImage: v }))} /></Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Kategori"><FSelect value={form.kategoriEventId} onChange={e => setForm(p => ({ ...p, kategoriEventId: e.target.value }))}>{state.kategoriEvent.map(k => <option key={k.id} value={k.id}>{k.nama}</option>)}</FSelect></Field>
-              <Field label="Venue"><FSelect value={form.venueId} onChange={e => setForm(p => ({ ...p, venueId: e.target.value }))}>{state.venue.map(v => <option key={v.id} value={v.id}>{v.nama}</option>)}</FSelect></Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Tanggal Mulai *" error={errors.tanggalMulai}><FInput type="date" value={form.tanggalMulai} onChange={e => setForm(p => ({ ...p, tanggalMulai: e.target.value }))} /></Field>
-              <Field label="Tanggal Selesai *" error={errors.tanggalSelesai}><FInput type="date" value={form.tanggalSelesai} onChange={e => setForm(p => ({ ...p, tanggalSelesai: e.target.value }))} /></Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Jam Mulai *"><FInput type="time" value={form.jamMulai} onChange={e => setForm(p => ({ ...p, jamMulai: e.target.value }))} /></Field>
-              <Field label="Jam Selesai"><FInput type="time" value={form.jamSelesai} onChange={e => setForm(p => ({ ...p, jamSelesai: e.target.value }))} /></Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Organizer"><FInput value={form.organizer} onChange={e => setForm(p => ({ ...p, organizer: e.target.value }))} /></Field>
-              <Field label="Sponsor / Partner"><FInput value={form.sponsor} onChange={e => setForm(p => ({ ...p, sponsor: e.target.value }))} /></Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Kuota *" error={errors.kuota}><FInput type="number" value={form.kuota} onChange={e => setForm(p => ({ ...p, kuota: e.target.value }))} /></Field>
-              <Field label="Harga (0 = gratis) *" error={errors.harga}><FInput type="number" value={form.harga} onChange={e => setForm(p => ({ ...p, harga: e.target.value }))} /></Field>
-            </div>
-            <div>
-              <div className="text-xs font-medium text-gray-700 mb-2">Agenda Acara</div>
-              <div className="space-y-2 mb-2">
-                {form.agenda.map((row, i) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <FInput type="time" value={row.jam} style={{ width: 100 }} onChange={e => setForm(p => ({ ...p, agenda: p.agenda.map((r, j) => j === i ? { ...r, jam: e.target.value } : r) }))} />
-                    <FInput className="flex-1" value={row.kegiatan} placeholder="Kegiatan..." onChange={e => setForm(p => ({ ...p, agenda: p.agenda.map((r, j) => j === i ? { ...r, kegiatan: e.target.value } : r) }))} />
-                    <button type="button" onClick={() => setForm(p => ({ ...p, agenda: p.agenda.filter((_, j) => j !== i) }))} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"><X size={14} /></button>
-                  </div>
-                ))}
-              </div>
-              <button type="button" onClick={() => setForm(p => ({ ...p, agenda: [...p.agenda, { jam: '', kegiatan: '' }] }))} className="text-xs text-blue-600 hover:underline">+ Tambah Sesi</button>
-            </div>
-            <div>
-              <div className="text-xs font-medium text-gray-700 mb-2">Fasilitas yang Didapat</div>
-              <div className="space-y-2 mb-2">
-                {form.fasilitas.map((item, i) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <FInput className="flex-1" value={item} placeholder="Fasilitas..." onChange={e => setForm(p => ({ ...p, fasilitas: p.fasilitas.map((f, j) => j === i ? e.target.value : f) }))} />
-                    <button type="button" onClick={() => setForm(p => ({ ...p, fasilitas: p.fasilitas.filter((_, j) => j !== i) }))} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"><X size={14} /></button>
-                  </div>
-                ))}
-              </div>
-              <button type="button" onClick={() => setForm(p => ({ ...p, fasilitas: [...p.fasilitas, ''] }))} className="text-xs text-blue-600 hover:underline">+ Tambah Fasilitas</button>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => setModal(null)} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
-              <button onClick={handleSubmit} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm hover:bg-blue-700">Simpan</button>
-            </div>
-          </div>
-        </Modal>
+        <EventDetailView
+          ev={ev}
+          state={state}
+          onBack={() => setDetail(null)}
+          actions={<>
+            {ev.status === 'Draft' && <button onClick={() => setStatusAction({ event: ev, newStatus: 'Registration Open' })} className={btnSuccess}>Open Registration</button>}
+            {ev.status === 'Registration Open' && <button onClick={() => setStatusAction({ event: ev, newStatus: 'Check-in' })} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">Start Check-in</button>}
+            {ev.status === 'Check-in' && <button onClick={() => setStatusAction({ event: ev, newStatus: 'Recap Pending' })} className="px-4 py-2 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600">Close Event</button>}
+            {ev.status === 'Recap Pending' && <button onClick={() => setStatusAction({ event: ev, newStatus: 'Recap Published' })} className={btnPrimary}>Publish Recap</button>}
+            {ev.status === 'Registration Open' && <button onClick={() => setStatusAction({ event: ev, newStatus: 'Cancelled' })} className="px-4 py-2 bg-red-100 text-red-600 text-sm rounded-lg hover:bg-red-200">Cancel</button>}
+            {(ev.status === 'Draft' || ev.status === 'Registration Open') && <button onClick={() => openEdit(ev)} className={btnGhost}><Edit2 size={14} /> Edit</button>}
+            <button onClick={() => onNav('event-partisipan', ev.id)} className={btnGhost}><Users size={14} /> Partisipan</button>
+            {ev.status === 'Draft' && <button onClick={() => setDeleteTarget(ev)} className={btnDangerSoft}><Trash2 size={14} /> Hapus</button>}
+          </>}
+        />
+        {eventModalEl}
         <ConfirmDialog
           open={!!statusAction}
           title="Ubah Status Event?"
@@ -1434,7 +2265,7 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
         </div>
       </div>
 
-      <div className="flex gap-3 mb-5 flex-wrap">
+      <div className="grid grid-cols-3 gap-3 mb-5">
         <StatBox label="Total Event" value={state.events.length} />
         <StatBox label="Registration Open" value={state.events.filter(e => e.status === 'Registration Open').length} />
         <StatBox label="Total Pendaftar" value={fmt(state.events.reduce((a, e) => a + (e.pendaftar || 0), 0))} />
@@ -1526,28 +2357,7 @@ function ListEventPage({ state, dispatch, toast, onNav, loadData }) {
         </div>
       )}
 
-      <Modal open={!!modal} title={modal?.mode === 'add' ? 'Buat Event Baru' : 'Edit Event'} onClose={() => setModal(null)} size="lg">
-        <div className="space-y-4">
-          <Field label="Nama Event *" error={errors.nama}><FInput value={form.nama} onChange={e => setForm(p => ({ ...p, nama: e.target.value }))} placeholder="Nama event" /></Field>
-          <Field label="Deskripsi"><FTextarea value={form.deskripsi} onChange={e => setForm(p => ({ ...p, deskripsi: e.target.value }))} rows={3} /></Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Kategori Event"><FSelect value={form.kategoriEventId} onChange={e => setForm(p => ({ ...p, kategoriEventId: e.target.value }))}>{state.kategoriEvent.map(k => <option key={k.id} value={k.id}>{k.nama}</option>)}</FSelect></Field>
-            <Field label="Venue"><FSelect value={form.venueId} onChange={e => setForm(p => ({ ...p, venueId: e.target.value }))}>{state.venue.map(v => <option key={v.id} value={v.id}>{v.nama}</option>)}</FSelect></Field>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Tanggal Mulai *" error={errors.tanggalMulai}><FInput type="date" value={form.tanggalMulai} onChange={e => setForm(p => ({ ...p, tanggalMulai: e.target.value }))} /></Field>
-            <Field label="Tanggal Selesai *" error={errors.tanggalSelesai}><FInput type="date" value={form.tanggalSelesai} onChange={e => setForm(p => ({ ...p, tanggalSelesai: e.target.value }))} /></Field>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Kuota (orang) *" error={errors.kuota}><FInput type="number" value={form.kuota} onChange={e => setForm(p => ({ ...p, kuota: e.target.value }))} placeholder="100" /></Field>
-            <Field label="Harga (0 = gratis) *" error={errors.harga}><FInput type="number" value={form.harga} onChange={e => setForm(p => ({ ...p, harga: e.target.value }))} placeholder="75000" /></Field>
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button onClick={() => setModal(null)} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
-            <button onClick={handleSubmit} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm hover:bg-blue-700">Simpan</button>
-          </div>
-        </div>
-      </Modal>
+      {eventModalEl}
       <ConfirmDialog
         open={!!statusAction}
         title="Ubah Status Event?"
@@ -1788,7 +2598,8 @@ function PartisipanEventPage({ state, toast, initialEventId }) {
 // ═══════════════════════════════════════════════════════════════
 // PAGE: LIST KLUB
 // ═══════════════════════════════════════════════════════════════
-function ListKlubPage({ state, toast }) {
+function ListKlubPage({ state, toast, loadData }) {
+  const [detail, setDetail] = useState(null);
   const [search, setSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterKota, setFilterKota] = useState('Semua');
@@ -1806,6 +2617,11 @@ function ListKlubPage({ state, toast }) {
     (filterStatus === 'Semua' || k.status === filterStatus)
   );
   const totalMember = state.komunitas.reduce((a, k) => a + k.jumlahMember, 0);
+
+  if (detail) {
+    const klub = state.komunitas.find(k => k.id === detail.id) || detail;
+    return <KlubDetailView klub={klub} state={state} onBack={() => setDetail(null)} toast={toast} loadData={loadData} />;
+  }
 
   return (
     <div>
@@ -1888,6 +2704,7 @@ function ListKlubPage({ state, toast }) {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Dibuat</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Diupdate</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -1916,6 +2733,11 @@ function ListKlubPage({ state, toast }) {
                   <td className="px-5 py-3"><StatusBadge status={klub.status} /></td>
                   <td className="px-5 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(klub.createdAt)}</td>
                   <td className="px-5 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(klub.updatedAt)}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => setDetail(klub)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Detail"><Eye size={14} /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1950,7 +2772,7 @@ function PengajuanKlubPage({ state, dispatch, toast, loadData }) {
     if (actionModal.action === 'reject' && !catatan.trim()) { setCatatanError('Alasan penolakan wajib diisi'); return; }
     const newStatus = actionModal.action === 'approve' ? 'Approved' : 'Rejected';
     if (actionModal.action === 'approve') {
-      await apiCall(`/api/communities?id=${actionModal.pengajuan.id}`, 'PATCH', { status: 'active', notes: catatan }); await loadData();
+      await apiCall(`/api/communities?id=${actionModal.pengajuan.id}`, 'PATCH', { status: 'active', notes: catatan, type: 'Eksternal' }); await loadData();
       if (detail?.id === actionModal.pengajuan.id) setDetail(prev => ({ ...prev, status: newStatus, catatan: catatan || 'Approved and created as master komunitas.' }));
       toast('success', 'Pengajuan disetujui dan komunitas dibuat');
     } else {
@@ -1967,44 +2789,14 @@ function PengajuanKlubPage({ state, dispatch, toast, loadData }) {
   // Detail view
   if (detail) {
     const p = state.pengajuanKlub.find(x => x.id === detail.id) || detail;
-    const statusBorder = { Pending: 'border-l-yellow-400', Approved: 'border-l-green-500', Rejected: 'border-l-red-400' };
     return (
       <div>
-        <button onClick={() => setDetail(null)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-5 group">
-          <ArrowLeft size={15} className="group-hover:-translate-x-0.5 transition-transform" /> Kembali ke Pengajuan Klub
-        </button>
-        <div className={`bg-white rounded-xl border border-gray-200 border-l-4 ${statusBorder[p.status]} p-6 max-w-2xl`}>
-          <div className="flex items-start justify-between mb-5">
-            <div>
-              <div className="flex items-center gap-2 mb-1"><StatusBadge status={p.status} /><span className="text-xs text-gray-400">{p.kategori}</span></div>
-              <h1 className="text-lg font-bold text-gray-900">{p.namaKlub}</h1>
-              <p className="text-xs text-gray-400 mt-0.5">Diajukan: {fmtDate(p.tanggalAjuan)}</p>
-            </div>
-            {p.status === 'Pending' && (
-              <div className="flex gap-2">
-                <button onClick={() => openAction(p, 'approve')} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700"><CheckCircle size={12} /> Approve</button>
-                <button onClick={() => openAction(p, 'reject')} className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-600 text-xs rounded-lg hover:bg-red-200"><XCircle size={12} /> Reject</button>
-              </div>
-            )}
-          </div>
-          <div className="space-y-4 text-sm">
-            <div><p className="text-xs text-gray-400 mb-0.5">Deskripsi</p><p className="text-gray-700 leading-relaxed">{p.deskripsi}</p></div>
-            <div className="border-t border-gray-100 pt-4">
-              <p className="text-xs text-gray-400 mb-2 font-semibold uppercase">Data PIC</p>
-              <div className="grid grid-cols-3 gap-4">
-                <div><p className="text-xs text-gray-400 mb-0.5">Nama</p><p className="font-medium text-gray-900">{p.namaPIC}</p></div>
-                <div><p className="text-xs text-gray-400 mb-0.5">Email</p><p className="text-gray-700">{p.emailPIC}</p></div>
-                <div><p className="text-xs text-gray-400 mb-0.5">No. HP</p><p className="text-gray-700">{p.noHpPIC}</p></div>
-              </div>
-            </div>
-            {p.catatan && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
-                <p className="text-xs text-gray-400 mb-1 font-semibold uppercase">Catatan Admin</p>
-                <p className="text-gray-700">{p.catatan}</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <PengajuanKlubDetailView
+          p={p}
+          onBack={() => setDetail(null)}
+          onApprove={() => openAction(p, 'approve')}
+          onReject={() => openAction(p, 'reject')}
+        />
         <Modal
           open={!!actionModal}
           title={actionModal?.action === 'approve' ? 'Setujui Pengajuan' : 'Tolak Pengajuan'}
@@ -2052,7 +2844,7 @@ function PengajuanKlubPage({ state, dispatch, toast, loadData }) {
         </div>
       </div>
 
-      <div className="flex gap-3 mb-5 flex-wrap">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <StatBox label="Total Pengajuan" value={state.pengajuanKlub.length} />
         <StatBox label="Pending" value={state.pengajuanKlub.filter(p => p.status === 'Pending').length} />
         <StatBox label="Approved" value={state.pengajuanKlub.filter(p => p.status === 'Approved').length} />
@@ -2167,141 +2959,53 @@ const STORY_KATEGORI = ['Rekap Event', 'Komunitas', 'Lifestyle', 'Berita', 'Insp
 
 const EMPTY_STORY_FORM = {
   judul: '', tipeRelasi: 'Umum', relatedEventId: '', relatedKomunitasId: '',
-  kategori: 'Umum', tags: '', penulis: '', coverImage: '', konten: '', tanggalPublish: '', tayangSelesai: '', status: 'Draft',
+  kategori: 'Umum', tags: '', penulis: '', coverImage: '', konten: '', tanggalPublish: '', tayangSelesai: '', status: 'Draft', alasanTolak: '',
 };
 
-function StoriesListPage({ state, dispatch, toast, loadData }) {
+function StoriesListPage({ state, toast, loadData }) {
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [formModal, setFormModal] = useState(null); // null | { mode: 'add' } | { mode: 'edit', story }
-  const [form, setForm] = useState(EMPTY_STORY_FORM);
-  const [formErrors, setFormErrors] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [rejectModal, setRejectModal] = useState(null); // story being rejected
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectReasonError, setRejectReasonError] = useState('');
+  const [detail, setDetail] = useState(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [search, setSearch] = useState('');
 
-  const pendingCount = state.stories.filter(s => s.status === 'Pending Approval').length;
-
-  const openReject = (story) => { setRejectModal(story); setRejectReason(''); setRejectReasonError(''); };
-  const closeReject = () => { setRejectModal(null); setRejectReason(''); setRejectReasonError(''); };
-
-  const handleReject = async () => {
-    if (!rejectReason.trim()) { setRejectReasonError('Alasan penolakan wajib diisi'); return; }
-    await apiCall(`/api/stories?id=${rejectModal.id}`, 'PATCH', { status: 'rejected' }); await loadData();
-    toast('success', 'Story ditolak.');
-    closeReject();
-  };
-
-  // Prefill helpers — called explicitly from onChange handlers (no stale closure risk)
-  const applyEventPrefill = (evId, currentForm) => {
-    if (!evId) return currentForm;
-    const ev = state.events.find(e => e.id === Number(evId));
-    if (!ev) return currentForm;
-    const judulPrefix = 'Recap: ';
-    return {
-      ...currentForm,
-      judul: currentForm.judul === '' || currentForm.judul.startsWith(judulPrefix) ? `${judulPrefix}${ev.nama}` : currentForm.judul,
-      tanggalPublish: currentForm.tanggalPublish === '' ? ev.tanggalSelesai : currentForm.tanggalPublish,
-      kategori: currentForm.kategori === 'Umum' ? 'Rekap Event' : currentForm.kategori,
-    };
-  };
-
-  const applyKomunitasPrefill = (komId, currentForm) => {
-    if (!komId) return currentForm;
-    const kom = state.komunitas.find(k => k.id === Number(komId));
-    if (!kom) return currentForm;
-    const judulPrefix = 'Spotlight: ';
-    return {
-      ...currentForm,
-      judul: currentForm.judul === '' || currentForm.judul.startsWith(judulPrefix) ? `${judulPrefix}${kom.nama}` : currentForm.judul,
-      kategori: currentForm.kategori === 'Umum' ? 'Komunitas' : currentForm.kategori,
-    };
-  };
-
-  const openAdd = () => {
-    setForm(EMPTY_STORY_FORM);
-    setFormErrors({});
-    setFormModal({ mode: 'add' });
-  };
-
-  const openEdit = (story) => {
-    setForm({
-      judul: story.judul,
-      tipeRelasi: story.tipeRelasi,
-      relatedEventId: story.relatedEventId ? String(story.relatedEventId) : '',
-      relatedKomunitasId: story.relatedKomunitasId ? String(story.relatedKomunitasId) : '',
-      kategori: story.kategori,
-      tags: story.tags || '',
-      penulis: story.penulis || '',
-      coverImage: story.coverImage || '',
-      konten: story.konten || '',
-      tanggalPublish: story.tanggalPublish || '',
-      tayangSelesai: story.tayangSelesai || '',
-      status: story.status,
-    });
-    setFormErrors({});
-    setFormModal({ mode: 'edit', story });
-  };
-
-  const closeModal = () => { setFormModal(null); setFormErrors({}); };
-
-  const validate = () => {
-    const e = {};
-    if (!form.judul.trim()) e.judul = 'Judul wajib diisi';
-    if (form.tipeRelasi === 'Event' && !form.relatedEventId) e.relatedEventId = 'Pilih event terkait';
-    if (form.tipeRelasi === 'Komunitas' && !form.relatedKomunitasId) e.relatedKomunitasId = 'Pilih komunitas terkait';
-    return e;
-  };
-
-  const handleSave = async () => {
-    const e = validate();
-    if (Object.keys(e).length) { setFormErrors(e); return; }
-    const data = {
-      ...form,
-      relatedEventId: form.relatedEventId ? Number(form.relatedEventId) : null,
-      relatedKomunitasId: form.relatedKomunitasId ? Number(form.relatedKomunitasId) : null,
-    };
-    if (formModal.mode === 'add') {
-      // Story yang dibuat langsung dari admin selalu berasal internal (tim
-      // D'Paragon sendiri), beda dari yang masuk lewat form pengajuan publik.
-      await apiCall(`/api/stories`, 'POST', { ...toApiStory(data), origin: 'internal' }); await loadData();
-      toast('success', 'Story berhasil ditambahkan!');
-    } else {
-      await apiCall(`/api/stories?id=${formModal.story.id}`, 'PATCH', toApiStory(data)); await loadData();
-      toast('success', 'Story berhasil diperbarui!');
-    }
-    closeModal();
-  };
+  // Story eksternal yang masih menunggu kurasi ada di menu Pengajuan Story.
+  // Di sini baru muncul setelah disetujui (Published) atau ditolak (Rejected).
+  const listStories = state.stories.filter(s => !(s.origin === 'Eksternal' && s.status === 'Pending Approval'));
+  const activeFilterCount = [filterStatus !== 'Semua', search.trim() !== ''].filter(Boolean).length;
+  const resetFilters = () => { setFilterStatus('Semua'); setSearch(''); };
+  const filtered = listStories.filter(s =>
+    (filterStatus === 'Semua' || s.status === filterStatus) &&
+    (search.trim() === '' || s.judul.toLowerCase().includes(search.trim().toLowerCase()) || (s.penulis || '').toLowerCase().includes(search.trim().toLowerCase()))
+  );
 
   const handleDelete = async () => {
     await apiCall(`/api/stories?id=${deleteConfirm.id}`, 'DELETE'); await loadData();
     toast('success', 'Story berhasil dihapus.');
+    if (detail?.id === deleteConfirm.id) setDetail(null);
     setDeleteConfirm(null);
   };
 
-  const getRelasiLabel = (story) => {
-    if (story.tipeRelasi === 'Event') {
-      const ev = state.events.find(e => e.id === story.relatedEventId);
-      return ev ? ev.nama : `Event #${story.relatedEventId}`;
-    }
-    if (story.tipeRelasi === 'Komunitas') {
-      const kom = state.komunitas.find(k => k.id === story.relatedKomunitasId);
-      return kom ? kom.nama : `Komunitas #${story.relatedKomunitasId}`;
-    }
-    return '—';
-  };
-
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const activeFilterCount = [filterStatus !== 'Semua', search.trim() !== ''].filter(Boolean).length;
-  const resetFilters = () => { setFilterStatus('Semua'); setSearch(''); };
-  // Story eksternal (dari form pengajuan publik) & internal (dibuat admin
-  // sendiri) punya pilihan status yang berbeda — lihat Field "Status" di bawah.
-  const isExternalStory = formModal?.mode === 'edit' && formModal.story.origin === 'Eksternal';
-  const filtered = state.stories.filter(s =>
-    (filterStatus === 'Semua' || s.status === filterStatus) &&
-    (search.trim() === '' || s.judul.toLowerCase().includes(search.trim().toLowerCase()) || (s.penulis || '').toLowerCase().includes(search.trim().toLowerCase()))
+  const formModalEl = formModal && (
+    <StoryFormModal mode={formModal.mode} story={formModal.story} state={state} toast={toast} loadData={loadData} onClose={() => setFormModal(null)} />
   );
+
+  if (detail) {
+    const story = state.stories.find(s => s.id === detail.id) || detail;
+    return (
+      <div>
+        <StoryDetailView
+          story={story}
+          state={state}
+          backLabel="Kembali ke List Stories"
+          onBack={() => setDetail(null)}
+          onEdit={() => setFormModal({ mode: 'edit', story })}
+        />
+        {formModalEl}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -2311,21 +3015,18 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
           <p className="text-sm text-gray-500 mt-0.5">Kelola artikel, recap event, dan spotlight komunitas</p>
         </div>
         <div className="flex items-center gap-3">
-          {pendingCount > 0 && (
-            <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm rounded-full font-medium">{pendingCount} menunggu review</span>
-          )}
           <ExportButtons toast={toast} label="stories" />
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+          <button onClick={() => setFormModal({ mode: 'add' })} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
             <Plus size={15} /> Tambah Story
           </button>
         </div>
       </div>
 
-      <div className="flex gap-3 mb-5 flex-wrap">
-        <StatBox label="Total Story" value={state.stories.length} />
-        <StatBox label="Published" value={state.stories.filter(s => s.status === 'Published').length} />
-        <StatBox label="Pending Approval" value={state.stories.filter(s => s.status === 'Pending Approval').length} />
-        <StatBox label="Draft" value={state.stories.filter(s => s.status === 'Draft').length} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <StatBox label="Total Story" value={listStories.length} />
+        <StatBox label="Published" value={listStories.filter(s => s.status === 'Published').length} />
+        <StatBox label="Draft" value={listStories.filter(s => s.status === 'Draft').length} />
+        <StatBox label="Rejected" value={listStories.filter(s => s.status === 'Rejected').length} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
@@ -2344,7 +3045,7 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
               </Field>
               <Field label="Status">
                 <FSelect value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                  {['Semua', 'Draft', 'Pending Approval', 'Published', 'Rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+                  {['Semua', 'Draft', 'Published', 'Rejected'].map(s => <option key={s} value={s}>{s}</option>)}
                 </FSelect>
               </Field>
             </div>
@@ -2357,7 +3058,7 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
         <EmptyState
           title="Belum ada story"
           desc={filterStatus === 'Semua' ? 'Mulai buat story pertama Anda.' : `Tidak ada story dengan status ${filterStatus}.`}
-          action={<button onClick={openAdd} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Tambah Story</button>}
+          action={<button onClick={() => setFormModal({ mode: 'add' })} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Tambah Story</button>}
         />
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -2392,20 +3093,18 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
                       {story.tipeRelasi}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600 text-xs max-w-[160px] truncate">{getRelasiLabel(story)}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs max-w-[160px] truncate">{storyRelasiLabel(state, story)}</td>
                   <td className="px-4 py-3"><StatusBadge status={story.status} /></td>
                   <td className="px-4 py-3 text-gray-500 text-xs">
-                    {story.tanggalPublish ? fmtDate(story.tanggalPublish) : '—'}
-                    {story.tayangSelesai ? ` s/d ${fmtDate(story.tayangSelesai)}` : ''}
+                    {story.tanggalPublish ? fmtDateSafe(story.tanggalPublish) : '—'}
+                    {story.tayangSelesai ? ` s/d ${fmtDateSafe(story.tayangSelesai)}` : ''}
                   </td>
                   <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(story.createdAt)}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(story.updatedAt)}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-end">
-                      {story.status === 'Pending Approval' && (
-                        <button onClick={() => openReject(story)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Reject"><XCircle size={14} /></button>
-                      )}
-                      <button onClick={() => openEdit(story)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title={story.status === 'Pending Approval' ? 'Tinjau & Publish' : 'Edit'}><Edit2 size={14} /></button>
+                      <button onClick={() => setDetail(story)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Detail"><Eye size={14} /></button>
+                      <button onClick={() => setFormModal({ mode: 'edit', story })} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Edit2 size={14} /></button>
                       <button onClick={() => setDeleteConfirm(story)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Hapus"><Trash2 size={14} /></button>
                     </div>
                   </td>
@@ -2416,124 +3115,7 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
         </div>
       )}
 
-      {/* Add / Edit Modal */}
-      <Modal
-        open={!!formModal}
-        title={formModal?.mode === 'add' ? 'Tambah Story Baru' : 'Edit Story'}
-        onClose={closeModal}
-        size="lg"
-      >
-        <div className="space-y-4">
-          <Field label="Tipe Relasi *">
-            <FSelect value={form.tipeRelasi} onChange={e => {
-              const newTipe = e.target.value;
-              setForm(f => ({ ...f, tipeRelasi: newTipe, relatedEventId: '', relatedKomunitasId: '', tanggalPublish: newTipe !== f.tipeRelasi ? '' : f.tanggalPublish }));
-            }}>
-              <option value="Event">Event</option>
-              <option value="Komunitas">Komunitas</option>
-              <option value="Umum">Umum (artikel biasa)</option>
-            </FSelect>
-          </Field>
-
-          {form.tipeRelasi === 'Event' && (
-            <Field label="Event Terkait *" error={formErrors.relatedEventId}>
-              <FSelect value={form.relatedEventId} onChange={e => {
-                const evId = e.target.value;
-                setForm(f => applyEventPrefill(evId, { ...f, relatedEventId: evId }));
-              }}>
-                <option value="">— Pilih Event —</option>
-                {state.events.map(ev => (
-                  <option key={ev.id} value={ev.id}>{ev.nama} ({ev.status})</option>
-                ))}
-              </FSelect>
-            </Field>
-          )}
-
-          {form.tipeRelasi === 'Komunitas' && (
-            <Field label="Komunitas Terkait *" error={formErrors.relatedKomunitasId}>
-              <FSelect value={form.relatedKomunitasId} onChange={e => {
-                const komId = e.target.value;
-                setForm(f => applyKomunitasPrefill(komId, { ...f, relatedKomunitasId: komId }));
-              }}>
-                <option value="">— Pilih Komunitas —</option>
-                {state.komunitas.map(k => (
-                  <option key={k.id} value={k.id}>{k.nama} ({k.kota})</option>
-                ))}
-              </FSelect>
-            </Field>
-          )}
-
-          <Field label="Judul *" error={formErrors.judul}>
-            <FInput value={form.judul} onChange={e => setForm(f => ({ ...f, judul: e.target.value }))} placeholder="Judul artikel / recap / spotlight" />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Kategori">
-              <FSelect value={form.kategori} onChange={e => setForm(f => ({ ...f, kategori: e.target.value }))}>
-                {STORY_KATEGORI.map(k => <option key={k} value={k}>{k}</option>)}
-              </FSelect>
-            </Field>
-            <Field label="Tags (pisah koma)">
-              <FInput value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="bisnis, networking, recap" />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Penulis">
-              <FInput value={form.penulis} onChange={e => setForm(f => ({ ...f, penulis: e.target.value }))} placeholder="Nama penulis atau tim redaksi" />
-            </Field>
-            <Field label="Cover Image">
-              <ImageUploadField value={form.coverImage} onChange={v => setForm(f => ({ ...f, coverImage: v }))} />
-            </Field>
-          </div>
-
-          <Field label="Konten">
-            <FTextarea value={form.konten} onChange={e => setForm(f => ({ ...f, konten: e.target.value }))} rows={6} placeholder="Tulis isi artikel di sini..." />
-          </Field>
-
-          <Field label="Periode Tayang">
-            <DateRangeField
-              startValue={form.tanggalPublish}
-              endValue={form.tayangSelesai}
-              onChange={(start, end) => setForm(f => ({ ...f, tanggalPublish: start, tayangSelesai: end }))}
-            />
-          </Field>
-
-          <Field label="Status">
-            <FSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-              {isExternalStory ? (
-                <>
-                  {form.status === 'Pending Approval' && <option value="Pending Approval">Pending Approval (dari pengajuan web)</option>}
-                  <option value="Published">Published</option>
-                  <option value="Rejected">Rejected</option>
-                </>
-              ) : (
-                <>
-                  <option value="Draft">Draft</option>
-                  <option value="Published">Published</option>
-                </>
-              )}
-            </FSelect>
-            {form.status === 'Pending Approval' && (
-              <p className="mt-1.5 text-xs text-gray-400">Pilih Published atau Rejected untuk menindaklanjuti pengajuan ini.</p>
-            )}
-          </Field>
-
-          {isExternalStory && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5">
-              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Kontak Pengaju (via Ajukan Story)</p>
-              <p className="text-sm text-blue-700">{formModal.story.submitterEmail || '-'} · {formModal.story.submitterPhone || '-'}</p>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <button onClick={closeModal} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
-            <button onClick={handleSave} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm hover:bg-blue-700">
-              {formModal?.mode === 'add' ? 'Simpan Story' : 'Perbarui Story'}
-            </button>
-          </div>
-        </div>
-      </Modal>
+      {formModalEl}
 
       <ConfirmDialog
         open={!!deleteConfirm}
@@ -2542,27 +3124,137 @@ function StoriesListPage({ state, dispatch, toast, loadData }) {
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirm(null)}
       />
+    </div>
+  );
+}
 
-      {/* Reject Modal */}
-      <Modal
-        open={!!rejectModal}
-        title="Tolak Story"
-        onClose={closeReject}
-      >
-        <div className="space-y-4">
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-sm font-medium text-gray-900">{rejectModal?.judul}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Penulis: {rejectModal?.penulis || '-'}</p>
-          </div>
-          <Field label="Alasan Penolakan *" error={rejectReasonError}>
-            <FTextarea value={rejectReason} onChange={e => { setRejectReason(e.target.value); setRejectReasonError(''); }} rows={3} placeholder="Contoh: Konten belum sesuai pedoman komunitas..." />
-          </Field>
-          <div className="flex gap-3 pt-2">
-            <button onClick={closeReject} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
-            <button onClick={handleReject} className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm hover:bg-red-700">Tolak</button>
-          </div>
+// ═══════════════════════════════════════════════════════════════
+// PAGE: PENGAJUAN STORY
+// Aksi sengaja hanya Detail & Edit: keputusan (publish/tolak) diambil lewat
+// kolom Status di form Edit setelah isi story dibaca, bukan tombol sekali klik.
+// ═══════════════════════════════════════════════════════════════
+function PengajuanStoryPage({ state, toast, loadData }) {
+  const [detail, setDetail] = useState(null);
+  const [editStory, setEditStory] = useState(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  // Pengajuan = story eksternal. Yang sudah diputuskan pindah ke List Stories
+  // (Published / Rejected) dan tampil di sana dengan label asal Eksternal.
+  const eksternal = state.stories.filter(s => s.origin === 'Eksternal');
+  const pending = eksternal.filter(s => s.status === 'Pending Approval');
+  const q = search.trim().toLowerCase();
+  const filtered = pending.filter(s => q === '' || s.judul.toLowerCase().includes(q) || (s.penulis || '').toLowerCase().includes(q));
+
+  const komunitasNama = (s) => {
+    if (s.tipeRelasi !== 'Komunitas') return 'Umum';
+    const kom = state.komunitas.find(k => k.id === s.relatedKomunitasId);
+    return kom ? kom.nama : `Komunitas #${s.relatedKomunitasId}`;
+  };
+
+  const editModalEl = editStory && (
+    <StoryFormModal mode="edit" story={editStory} state={state} toast={toast} loadData={loadData} onClose={() => setEditStory(null)} />
+  );
+
+  if (detail) {
+    const story = state.stories.find(s => s.id === detail.id) || detail;
+    return (
+      <div>
+        <StoryDetailView
+          story={story}
+          state={state}
+          backLabel="Kembali ke Pengajuan Story"
+          onBack={() => setDetail(null)}
+          onEdit={() => setEditStory(story)}
+          showOrigin={false}
+        />
+        {editModalEl}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Pengajuan Story</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Kurasi story yang dikirim pihak eksternal lewat web customer</p>
         </div>
-      </Modal>
+        <div className="flex items-center gap-2">
+          {pending.length > 0 && (
+            <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm rounded-full font-medium">{pending.length} menunggu review</span>
+          )}
+          <ExportButtons toast={toast} label="pengajuan story" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <StatBox label="Total Pengajuan" value={eksternal.length} />
+        <StatBox label="Menunggu Review" value={pending.length} />
+        <StatBox label="Disetujui" value={eksternal.filter(s => s.status === 'Published').length} />
+        <StatBox label="Ditolak" value={eksternal.filter(s => s.status === 'Rejected').length} />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+        <button onClick={() => setFilterOpen(p => !p)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <span className="flex items-center gap-2">
+            Filter Lanjutan
+            {q !== '' && <span className="bg-blue-100 text-blue-700 text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">1</span>}
+          </span>
+          <ChevronDown size={15} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {filterOpen && (
+          <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+            <Field label="Cari Judul / Penulis">
+              <FInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Judul atau nama penulis..." />
+            </Field>
+            {q !== '' && <button onClick={() => setSearch('')} className="text-xs text-blue-600 hover:underline">Reset filter</button>}
+          </div>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState title="Tidak ada pengajuan" desc={q !== '' ? 'Tidak ada pengajuan yang cocok dengan pencarian.' : 'Belum ada story yang menunggu review. Story yang sudah diputuskan ada di List Stories.'} />
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full min-w-[950px]">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Judul</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Penulis</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Komunitas</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Kontak</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Diajukan</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(s => (
+                <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="px-5 py-3 font-medium text-gray-900 text-sm max-w-xs truncate">{s.judul}</td>
+                  <td className="px-5 py-3 text-gray-500 text-sm">{s.penulis || '—'}</td>
+                  <td className="px-5 py-3 text-gray-500 text-sm">{komunitasNama(s)}</td>
+                  <td className="px-5 py-3 text-gray-500 text-xs">
+                    <div>{s.submitterEmail || '—'}</div>
+                    <div className="text-gray-400">{s.submitterPhone || ''}</div>
+                  </td>
+                  <td className="px-5 py-3"><StatusBadge status={s.status} /></td>
+                  <td className="px-5 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(s.createdAt)}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => setDetail(s)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Detail"><Eye size={14} /></button>
+                      <button onClick={() => setEditStory(s)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Edit2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {editModalEl}
     </div>
   );
 }
@@ -2888,10 +3580,80 @@ const STATUS_REVIEW_COLORS = {
   'Rejected': 'bg-red-100 text-red-700',
 };
 
-function ReviewVerificationPage({ state, dispatch, toast, loadData }) {
+const Stars = ({ n }) => (
+  <span className="text-base leading-none">
+    <span className="text-yellow-400">{'★'.repeat(n)}</span>
+    <span className="text-gray-200">{'★'.repeat(5 - n)}</span>
+  </span>
+);
+
+function ReviewDetailView({ review, onBack, onApprove, onReject }) {
+  const riwayat = [
+    { title: 'Review dikirim', meta: `${fmtDateTime(review.tanggalSubmit)} · oleh ${review.userName || review.userId}`, tone: 'done' },
+    review.status === 'Pending'
+      ? { title: 'Menunggu verifikasi admin', tone: 'wait' }
+      : {
+          title: review.status === 'Approved' ? 'Disetujui & tampil publik' : 'Ditolak',
+          meta: review.reviewedAt ? fmtDateTime(review.reviewedAt) : 'Waktu keputusan tidak tercatat',
+          note: review.status === 'Rejected' ? (review.catatan || null) : null,
+          tone: review.status === 'Approved' ? 'ok' : 'bad',
+        },
+  ];
+  return (
+    <div>
+      <DetailBack label="Kembali ke Verifikasi Review" onClick={onBack} />
+      <DetailHeader
+        badges={<>
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_REVIEW_COLORS[review.status] || 'bg-gray-100 text-gray-600'}`}>{review.status}</span>
+          <Stars n={review.rating} />
+        </>}
+        title={`Review dari ${review.userName || review.userId}`}
+        subtitle={review.eventNama}
+      />
+      <DetailLayout
+        main={<>
+          {review.status === 'Rejected' && (
+            <DetailCard title="Alasan Penolakan" tone="danger">
+              <p className="text-sm text-red-700 whitespace-pre-line">{review.catatan || 'Tidak ada alasan yang dicatat.'}</p>
+            </DetailCard>
+          )}
+          <DetailCard title="Komentar"><TextBlock empty="Peserta tidak menulis komentar.">{review.komentar}</TextBlock></DetailCard>
+        </>}
+        aside={<>
+          <DetailCard title="Penilaian">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl font-bold text-gray-900">{review.rating}<span className="text-sm font-normal text-gray-400"> / 5</span></span>
+              <Stars n={review.rating} />
+            </div>
+          </DetailCard>
+          <DetailCard title="Peserta & Event">
+            <InfoList>
+              <InfoItem label="Nama">{review.userName}</InfoItem>
+              <InfoItem label="Email">{review.userId ? <a href={`mailto:${review.userId}`} className="text-blue-600 hover:underline">{review.userId}</a> : null}</InfoItem>
+              <InfoItem label="Event">{review.eventNama}</InfoItem>
+            </InfoList>
+          </DetailCard>
+          <DetailCard title="Riwayat Verifikasi"><Timeline items={riwayat} /></DetailCard>
+        </>}
+      />
+      <ActionBar hint={review.status === 'Pending' ? 'Baca komentar lengkap sebelum memutuskan.' : 'Keputusan masih bisa diubah bila perlu.'}>
+        {review.status !== 'Rejected' && (
+          <button onClick={onReject} className={btnDangerSoft}><XCircle size={15} /> {review.status === 'Approved' ? 'Ubah ke Ditolak' : 'Tolak'}</button>
+        )}
+        {review.status !== 'Approved' && (
+          <button onClick={onApprove} className={btnSuccess}><CheckCircle size={15} /> {review.status === 'Rejected' ? 'Ubah ke Disetujui' : 'Setujui'}</button>
+        )}
+      </ActionBar>
+    </div>
+  );
+}
+
+function ReviewVerificationPage({ state, toast, loadData }) {
   const [filterStatus, setFilterStatus] = useState('Semua');
-  const [rejectModal, setRejectModal] = useState(null); // review object being rejected
-  const [catatan, setCatatan] = useState('');
+  const [detail, setDetail] = useState(null);
+  const [rejectModal, setRejectModal] = useState(null); // review yang akan ditolak
+  const [alasan, setAlasan] = useState('');
+  const [alasanError, setAlasanError] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -2903,21 +3665,49 @@ function ReviewVerificationPage({ state, dispatch, toast, loadData }) {
   );
   const pendingCount = state.reviews.filter(r => r.status === 'Pending').length;
 
+  const closeReject = () => { setRejectModal(null); setAlasan(''); setAlasanError(''); };
+  const openReject = (review) => { setRejectModal(review); setAlasan(''); setAlasanError(''); };
+
   const handleApprove = async (review) => {
     await apiCall(`/api/reviews?id=${review.id}`, 'PATCH', { status: 'approved' }); await loadData();
     toast('success', `Review dari ${review.userName} disetujui.`);
   };
 
-  const handleOpenReject = (review) => {
-    setCatatan('');
-    setRejectModal(review);
+  const handleConfirmReject = async () => {
+    if (!alasan.trim()) { setAlasanError('Alasan penolakan wajib diisi'); return; }
+    await apiCall(`/api/reviews?id=${rejectModal.id}`, 'PATCH', { status: 'rejected', notes: alasan.trim() }); await loadData();
+    toast('success', `Review dari ${rejectModal.userName} ditolak.`);
+    closeReject();
   };
 
-  const handleConfirmReject = async () => {
-    await apiCall(`/api/reviews?id=${rejectModal.id}`, 'PATCH', { status: 'rejected' }); await loadData();
-    toast('success', `Review dari ${rejectModal.userName} ditolak.`);
-    setRejectModal(null);
-  };
+  const rejectModalEl = (
+    <Modal open={!!rejectModal} title="Tolak Review" onClose={closeReject}>
+      <div className="space-y-4">
+        <div className="bg-gray-50 rounded-xl p-3">
+          <p className="text-sm font-medium text-gray-900">{rejectModal?.userName}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{rejectModal?.eventNama} · {'★'.repeat(rejectModal?.rating || 0)}</p>
+          <p className="text-xs text-gray-600 mt-1 italic line-clamp-2">&ldquo;{rejectModal?.komentar}&rdquo;</p>
+        </div>
+        <Field label="Alasan Penolakan *" error={alasanError}>
+          <FTextarea rows={3} value={alasan} onChange={e => { setAlasan(e.target.value); setAlasanError(''); }} placeholder="Contoh: Konten tidak sesuai dengan pedoman komunitas..." />
+        </Field>
+        <div className="flex gap-3 pt-2">
+          <button onClick={closeReject} className="flex-1 py-2 border border-gray-200 text-sm rounded-lg hover:bg-gray-50">Batal</button>
+          <button onClick={handleConfirmReject} className="flex-1 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700">Tolak</button>
+        </div>
+      </div>
+    </Modal>
+  );
+
+  if (detail) {
+    const review = state.reviews.find(r => r.id === detail.id) || detail;
+    return (
+      <div>
+        <ReviewDetailView review={review} onBack={() => setDetail(null)} onApprove={() => handleApprove(review)} onReject={() => openReject(review)} />
+        {rejectModalEl}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -2931,7 +3721,7 @@ function ReviewVerificationPage({ state, dispatch, toast, loadData }) {
         <ExportButtons toast={toast} label="review" />
       </div>
 
-      <div className="flex gap-3 mb-5 flex-wrap">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <StatBox label="Total Review" value={state.reviews.length} />
         <StatBox label="Pending" value={state.reviews.filter(r => r.status === 'Pending').length} />
         <StatBox label="Approved" value={state.reviews.filter(r => r.status === 'Approved').length} />
@@ -2989,41 +3779,23 @@ function ReviewVerificationPage({ state, dispatch, toast, loadData }) {
                   <td className="px-4 py-4">
                     <div className="text-gray-700 max-w-[180px] line-clamp-2">{review.eventNama}</div>
                   </td>
-                  <td className="px-4 py-4 text-center">
-                    <span className="text-yellow-400 text-base">{'★'.repeat(review.rating)}</span>
-                    <span className="text-gray-200 text-base">{'★'.repeat(5 - review.rating)}</span>
-                  </td>
+                  <td className="px-4 py-4 text-center"><Stars n={review.rating} /></td>
                   <td className="px-4 py-4">
                     <p className="text-gray-600 max-w-[220px] line-clamp-2">{review.komentar}</p>
                     {review.catatan && review.status === 'Rejected' && (
-                      <p className="text-xs text-red-500 mt-1 italic">Catatan: {review.catatan}</p>
+                      <p className="text-xs text-red-500 mt-1 italic line-clamp-1">Alasan: {review.catatan}</p>
                     )}
                   </td>
-                  <td className="px-4 py-4 text-gray-500 whitespace-nowrap">{review.tanggalSubmit}</td>
+                  <td className="px-4 py-4 text-gray-500 whitespace-nowrap">{fmtDateSafe(review.tanggalSubmit)}</td>
                   <td className="px-4 py-4 text-center">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_REVIEW_COLORS[review.status] || 'bg-gray-100 text-gray-600'}`}>
                       {review.status}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-center">
-                    {review.status === 'Pending' ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => handleApprove(review)}
-                          className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
-                        >
-                          <CheckCircle size={13} /> Setujui
-                        </button>
-                        <button
-                          onClick={() => handleOpenReject(review)}
-                          className="px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1"
-                        >
-                          <XCircle size={13} /> Tolak
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
-                    )}
+                  <td className="px-4 py-4">
+                    <div className="flex items-center justify-center gap-1">
+                      <button onClick={() => setDetail(review)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Detail"><Eye size={14} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -3031,34 +3803,6 @@ function ReviewVerificationPage({ state, dispatch, toast, loadData }) {
           </table>
         </div>
       )}
-
-      {/* Reject Modal */}
-      <Modal open={!!rejectModal}>
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-gray-900">Tolak Review</h3>
-            <button onClick={() => setRejectModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
-          </div>
-          <div className="bg-gray-50 rounded-xl p-3 mb-4">
-            <p className="text-sm font-medium text-gray-900">{rejectModal?.userName}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{rejectModal?.eventNama} · {'★'.repeat(rejectModal?.rating || 0)}</p>
-            <p className="text-xs text-gray-600 mt-1 italic line-clamp-2">&ldquo;{rejectModal?.komentar}&rdquo;</p>
-          </div>
-          <div className="mb-4">
-            <label className="block text-xs text-gray-500 mb-1.5">Catatan penolakan (opsional)</label>
-            <FTextarea
-              rows={3}
-              value={catatan}
-              onChange={e => setCatatan(e.target.value)}
-              placeholder="Contoh: Konten tidak sesuai dengan pedoman komunitas..."
-            />
-          </div>
-          <div className="flex gap-3">
-            <button onClick={() => setRejectModal(null)} className="flex-1 py-2 border border-gray-200 text-sm rounded-xl hover:bg-gray-50">Batal</button>
-            <button onClick={handleConfirmReject} className="flex-1 py-2 bg-red-500 text-white text-sm rounded-xl hover:bg-red-600 transition-colors">Konfirmasi Tolak</button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }
@@ -3081,9 +3825,6 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [detailLead, setDetailLead] = useState(null);
-  const [rejectModal, setRejectModal] = useState(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectReasonError, setRejectReasonError] = useState('');
 
   const activeFilterCount = [
     filterStatus !== 'Semua',
@@ -3114,17 +3855,10 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
     toast('success', `${lead.organisasi} ditandai sudah dihubungi.`);
   };
 
-  const openReject = (lead) => { setRejectModal(lead); setRejectReason(''); setRejectReasonError(''); };
-  const closeReject = () => { setRejectModal(null); setRejectReason(''); setRejectReasonError(''); };
-
-  const handleReject = async () => {
-    if (!rejectReason.trim()) { setRejectReasonError('Alasan penolakan wajib diisi'); return; }
-    const resource = rejectModal._source === 'organizer' ? 'organizers' : 'sponsors';
-    await apiCall(`/api/${resource}?id=${rejectModal.id}`, 'PATCH', { status: 'rejected', notes: rejectReason });
-    await loadData();
-    toast('success', `Pengajuan ${rejectModal.organisasi} ditolak.`);
-    closeReject();
-  };
+  if (detailLead) {
+    const lead = state.partnershipLeads.find(l => l._source === detailLead._source && l.id === detailLead.id) || detailLead;
+    return <LeadDetailView lead={lead} onBack={() => setDetailLead(null)} onMarkContacted={() => handleMarkContacted(lead)} />;
+  }
 
   return (
     <div>
@@ -3138,7 +3872,7 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
         <ExportButtons toast={toast} label="pengajuan kemitraan" />
       </div>
 
-      <div className="flex gap-3 mb-5 flex-wrap">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <StatBox label={`Total ${filterTipe}`} value={state.partnershipLeads.filter(l => l.tipe === filterTipe).length} />
         <StatBox label="Pending Review" value={state.partnershipLeads.filter(l => l.tipe === filterTipe && l.status === 'Pending Review').length} />
         <StatBox label="Contacted" value={state.partnershipLeads.filter(l => l.tipe === filterTipe && l.status === 'Contacted').length} />
@@ -3262,13 +3996,6 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
                           >
                             Tandai Dihubungi
                           </button>
-                          <button
-                            onClick={() => openReject(lead)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                            title="Reject"
-                          >
-                            <XCircle size={15} />
-                          </button>
                         </>
                       )}
                     </div>
@@ -3280,86 +4007,6 @@ function PartnershipLeadsPage({ state, toast, loadData }) {
         </div>
       )}
 
-      <Modal open={!!detailLead} title="Detail Pengajuan" onClose={() => setDetailLead(null)} size="lg">
-        {detailLead && (
-          <div className="space-y-4 text-sm">
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${detailLead.tipe === 'EO' ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
-                {detailLead.tipe}
-              </span>
-              {detailLead.tipe === 'Sponsor' && (
-                <span className="text-xs text-gray-500">{detailLead.subTipe}</span>
-              )}
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <DetailRow label="Organisasi / Brand" value={detailLead.organisasi} />
-              <DetailRow label="PIC" value={detailLead.pic} />
-              <DetailRow label="Email" value={detailLead.email} />
-              <DetailRow label="No. HP" value={detailLead.noHp} />
-              {detailLead.tipe === 'EO' && (
-                <DetailRow label="Tanggal Event" value={detailLead.eventDate || detailLead.eventDateEnd ? `${detailLead.eventDate || '-'} s/d ${detailLead.eventDateEnd || '-'}` : '-'} />
-              )}
-              {detailLead.tipe === 'Sponsor' && (
-                <DetailRow label="Periode Sponsorship" value={detailLead.sponsorStart || detailLead.sponsorEnd ? `${detailLead.sponsorStart || '-'} s/d ${detailLead.sponsorEnd || '-'}` : '-'} />
-              )}
-              <DetailRow label="Link Sosmed / Web" value={detailLead.website} />
-              <DetailRow label="Tanggal Ajuan" value={detailLead.tanggalAjuan} />
-            </div>
-            {(detailLead.tipe === 'EO' || detailLead.subTipe === 'Pengajuan') && (
-              <DetailRow label="Deskripsi Acara" value={detailLead.eventDesc} block />
-            )}
-            {(detailLead.tipe === 'EO' || detailLead.subTipe === 'Pengajuan') && (
-              <DetailRow label={`Kebutuhan ${detailLead.tipe}`} value={detailLead.kebutuhan} block />
-            )}
-            {detailLead.tipe === 'Sponsor' && (
-              <DetailRow label="Benefit" value={detailLead.benefit} block />
-            )}
-            <div>
-              <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Attachment</div>
-              {detailLead.attachment ? (
-                <a
-                  href={detailLead.attachment}
-                  download={detailLead.attachmentName || 'attachment'}
-                  className="inline-flex items-center gap-1.5 text-blue-600 hover:underline text-sm"
-                >
-                  <FileText size={14} /> {detailLead.attachmentName || 'Unduh file'}
-                </a>
-              ) : (
-                <p className="text-gray-400 text-sm">-</p>
-              )}
-            </div>
-            {detailLead.status === 'Rejected' && detailLead.catatan && (
-              <DetailRow label="Alasan Penolakan" value={detailLead.catatan} block />
-            )}
-          </div>
-        )}
-      </Modal>
-
-      {/* Reject Modal */}
-      <Modal open={!!rejectModal} title="Tolak Pengajuan" onClose={closeReject}>
-        <div className="space-y-4">
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-sm font-medium text-gray-900">{rejectModal?.organisasi}</p>
-            <p className="text-xs text-gray-500 mt-0.5">PIC: {rejectModal?.pic || '-'}</p>
-          </div>
-          <Field label="Alasan Penolakan *" error={rejectReasonError}>
-            <FTextarea value={rejectReason} onChange={e => { setRejectReason(e.target.value); setRejectReasonError(''); }} rows={3} placeholder="Contoh: Konsep belum sesuai dengan kebutuhan komunitas..." />
-          </Field>
-          <div className="flex gap-3 pt-2">
-            <button onClick={closeReject} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm hover:bg-gray-50">Batal</button>
-            <button onClick={handleReject} className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm hover:bg-red-700">Tolak</button>
-          </div>
-        </div>
-      </Modal>
-    </div>
-  );
-}
-
-function DetailRow({ label, value, block }) {
-  return (
-    <div className={block ? 'col-span-2' : ''}>
-      <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">{label}</div>
-      <div className="text-gray-700 whitespace-pre-wrap">{value || '-'}</div>
     </div>
   );
 }
@@ -3386,10 +4033,12 @@ export default function App() {
           kategoriKomunitas: data.kategoriKomunitas.map(fromApiCateg),
           kategoriEvent: data.kategoriEvent.map(fromApiCateg),
           venue: data.venue.map(fromApiVenue),
-          komunitas: data.komunitas.filter(c => c.status !== 'pending').map(fromApiKomunitas),
+          // Klub yang ditolak tidak masuk daftar klub; riwayatnya ada di Pengajuan Klub.
+          komunitas: data.komunitas.filter(c => c.status === 'active' || c.status === 'inactive').map(fromApiKomunitas),
           events: data.events.map(fromApiEvent),
           partisipan: data.partisipan.map(fromApiPartisipan),
-          pengajuanKlub: data.komunitas.filter(c => c.status === 'pending').map(fromApiPengajuan),
+          pengajuanKlub: data.komunitas.filter(c => c.status === 'pending' || c.status === 'rejected' || c.submitted_at).map(fromApiPengajuan),
+          communityMembers: (data.communityMembers || []).map(m => ({ id: m.id, communityId: m.community_id, userEmail: m.user_email ?? '', userName: m.user_name ?? '', joinedAt: m.joined_at })),
           partnershipLeads: [
             ...data.organizers.filter(o => o.status !== 'active').map(fromApiOrgLead),
             ...data.sponsors.filter(s => s.status !== 'active').map(fromApiSponsorLead),
@@ -3437,6 +4086,7 @@ export default function App() {
     'klub-list': <ListKlubPage {...sharedProps} />,
     'klub-pengajuan': <PengajuanKlubPage {...sharedProps} />,
     'stories-list': <StoriesListPage {...sharedProps} />,
+    'stories-pengajuan': <PengajuanStoryPage {...sharedProps} />,
     'verifikasi-review': <ReviewVerificationPage {...sharedProps} />,
     'partnership-leads': <PartnershipLeadsPage {...sharedProps} />,
     'banner-community': <BannerCommunityPage {...sharedProps} />,
@@ -3450,8 +4100,8 @@ export default function App() {
         </div>
       )}
       <Sidebar currentPage={currentPage} onNav={handleNav} pendingPengajuan={pendingPengajuan} pendingReviews={pendingReviews} pendingLeads={pendingLeads} pendingStories={pendingStories} />
-      <main className="ml-60 flex-1 p-7 min-h-screen">
-        <div className="max-w-5xl">
+      <main className="ml-60 flex-1 min-w-0 p-7 min-h-screen">
+        <div className="max-w-7xl">
           {pageMap[currentPage] ?? <EmptyState title="Halaman tidak ditemukan" desc="Pilih menu di sidebar" />}
         </div>
       </main>

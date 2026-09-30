@@ -17,6 +17,20 @@ export async function createTables() {
   await db`CREATE TABLE IF NOT EXISTS communities (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, category_id INTEGER REFERENCES community_categories(id), type TEXT, city TEXT, status TEXT DEFAULT 'active', wa_link TEXT, admin TEXT, cover_image TEXT, rules JSONB DEFAULT '[]', pic_name TEXT, pic_email TEXT, pic_phone TEXT, notes TEXT, submitted_at DATE, created_at TIMESTAMPTZ DEFAULT NOW())`;
   await db`ALTER TABLE communities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
   await db`ALTER TABLE communities ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
+  // Waktu keputusan approve/reject pengajuan (untuk riwayat approval di detail klub).
+  await db`ALTER TABLE communities ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ`;
+  // Verifikasi review: alasan penolakan & waktu keputusan.
+  await db`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS notes TEXT`;
+  await db`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ`;
+  // Sponsor event sebagai teks bebas (belum terhubung ke master sponsor).
+  await db`ALTER TABLE events ADD COLUMN IF NOT EXISTS sponsor_name TEXT`;
+  // Galeri foto komunitas: daftar URL/data-URI gambar.
+  await db`ALTER TABLE communities ADD COLUMN IF NOT EXISTS gallery JSONB DEFAULT '[]'`;
+  // Klub yang masuk lewat form pengajuan web dulu tidak membawa tipe. Semua yang
+  // punya submitted_at berasal dari pihak luar, jadi tipenya Eksternal.
+  await db`UPDATE communities SET type = 'Eksternal' WHERE type IS NULL AND submitted_at IS NOT NULL`;
+  // Data lama sebelum reviewed_at ada: pakai updated_at sebagai perkiraan waktu keputusan.
+  await db`UPDATE communities SET reviewed_at = updated_at WHERE reviewed_at IS NULL AND submitted_at IS NOT NULL AND status IN ('active', 'inactive', 'rejected')`;
   await db`CREATE TABLE IF NOT EXISTS community_members (id SERIAL PRIMARY KEY, community_id INTEGER REFERENCES communities(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, joined_at TIMESTAMPTZ DEFAULT NOW(), status TEXT DEFAULT 'active', UNIQUE(community_id, user_id))`;
   await db`CREATE TABLE IF NOT EXISTS organizers (id SERIAL PRIMARY KEY, name TEXT NOT NULL, description TEXT, email TEXT, phone TEXT, website TEXT, pic TEXT, status TEXT DEFAULT 'active', notes TEXT, submitted_at DATE)`;
   await db`ALTER TABLE organizers ADD COLUMN IF NOT EXISTS event_date DATE`;
@@ -54,6 +68,8 @@ export async function createTables() {
   // menebak asal story dari ada/tidaknya submitter_email.
   await db`ALTER TABLE stories ADD COLUMN IF NOT EXISTS origin TEXT DEFAULT 'internal'`;
   await db`ALTER TABLE stories ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
+  // Alasan penolakan story eksternal (tampil ke pengaju di Status Pengajuan).
+  await db`ALTER TABLE stories ADD COLUMN IF NOT EXISTS notes TEXT`;
   // Migrasi data lama: sebelum kolom origin ada, tidak ada cara pasti untuk
   // tahu story mana yang benar dari web. Disepakati semua data lama dianggap
   // internal, dan submitter_email/phone-nya dibersihkan karena sudah tidak

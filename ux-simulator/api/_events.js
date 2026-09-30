@@ -45,11 +45,11 @@ export default async function handler(req, res) {
 
     // POST /api/events
     if (req.method === 'POST') {
-      const { name, description, category_id, venue_id, status, start_date, end_date, start_time, end_time, quota, price, cover_image, community_id, facilities, rules } = req.body;
+      const { name, description, category_id, venue_id, status, start_date, end_date, start_time, end_time, quota, price, cover_image, community_id, facilities, rules, sponsor_name } = req.body;
       if (!name) return res.status(400).json({ error: 'name is required' });
       const [event] = await db`
-        INSERT INTO events (name, description, category_id, venue_id, status, start_date, end_date, start_time, end_time, quota, price, cover_image, community_id, facilities, rules)
-        VALUES (${name}, ${description ?? null}, ${category_id ?? null}, ${venue_id ?? null}, ${status ?? 'Draft'}, ${start_date ?? null}, ${end_date ?? null}, ${start_time ?? null}, ${end_time ?? null}, ${quota ?? 0}, ${price ?? 0}, ${cover_image ?? null}, ${community_id ?? null}, ${JSON.stringify(facilities ?? [])}, ${JSON.stringify(rules ?? [])})
+        INSERT INTO events (name, description, category_id, venue_id, status, start_date, end_date, start_time, end_time, quota, price, cover_image, community_id, facilities, rules, sponsor_name)
+        VALUES (${name}, ${description ?? null}, ${category_id ?? null}, ${venue_id ?? null}, ${status ?? 'Draft'}, ${start_date ?? null}, ${end_date ?? null}, ${start_time ?? null}, ${end_time ?? null}, ${quota ?? 0}, ${price ?? 0}, ${cover_image ?? null}, ${community_id ?? null}, ${JSON.stringify(facilities ?? [])}, ${JSON.stringify(rules ?? [])}, ${sponsor_name ?? null})
         RETURNING *`;
       return res.status(201).json(event);
     }
@@ -77,7 +77,7 @@ export default async function handler(req, res) {
 
     // PATCH /api/events?id=X  →  update event data
     if (req.method === 'PATCH' && id) {
-      const { name, description, category_id, venue_id, status, start_date, end_date, start_time, end_time, quota, price, cover_image, community_id, facilities, rules } = req.body;
+      const { name, description, category_id, venue_id, status, start_date, end_date, start_time, end_time, quota, price, cover_image, community_id, facilities, rules, sponsor_name } = req.body;
       const [event] = await db`
         UPDATE events SET
           name = COALESCE(${name ?? null}, name),
@@ -92,7 +92,9 @@ export default async function handler(req, res) {
           quota = COALESCE(${quota ?? null}, quota),
           price = COALESCE(${price ?? null}, price),
           cover_image = COALESCE(${cover_image ?? null}, cover_image),
-          community_id = COALESCE(${community_id ?? null}, community_id),
+          -- community_id & sponsor_name boleh dikosongkan: bila key dikirim, nilainya (termasuk null) dipakai.
+          community_id = CASE WHEN ${'community_id' in req.body}::boolean THEN ${community_id ?? null}::integer ELSE community_id END,
+          sponsor_name = CASE WHEN ${'sponsor_name' in req.body}::boolean THEN ${sponsor_name ?? null}::text ELSE sponsor_name END,
           facilities = COALESCE(${facilities !== undefined ? JSON.stringify(facilities) : null}::jsonb, facilities),
           rules = COALESCE(${rules !== undefined ? JSON.stringify(rules) : null}::jsonb, rules),
           updated_at = NOW()

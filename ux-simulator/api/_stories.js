@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PATCH' && id) {
-      const { title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, publish_end_date, submitter_email, submitter_phone, status, images } = req.body;
+      const { title, type, event_id, community_id, category, tags, cover_image, content, author, published_at, publish_end_date, submitter_email, submitter_phone, status, images, notes } = req.body;
       // origin & user_id sengaja tidak diterima di sini: origin/pengaju
       // ditetapkan sekali saat story dibuat dan tidak boleh diubah lewat edit.
       const [story] = await db`
@@ -66,6 +66,13 @@ export default async function handler(req, res) {
           submitter_email = COALESCE(${submitter_email ?? null}, submitter_email),
           submitter_phone = COALESCE(${submitter_phone ?? null}, submitter_phone),
           status = COALESCE(${status ?? null}, status),
+          -- notes = alasan penolakan: diisi hanya saat status 'rejected', dikosongkan
+          -- bila status berubah ke yang lain, dibiarkan bila status tidak dikirim.
+          notes = CASE
+            WHEN ${status ?? null}::text IS NULL THEN notes
+            WHEN ${status ?? null}::text = 'rejected' THEN ${notes ?? null}::text
+            ELSE NULL
+          END,
           updated_at = NOW()
         WHERE id = ${Number(id)}
         RETURNING *`;

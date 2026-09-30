@@ -60,8 +60,12 @@ const fromApiEvent = e => ({
   venue: e.venue_name ?? '',
   kota: e.venue_city ?? '',
   alamatVenue: e.venue_address ?? '',
-  tanggal: e.start_date,
-  jamMulai: e.start_time,
+  tanggal: e.start_date ? String(e.start_date).slice(0, 10) : e.start_date,
+  // Komponen event membaca tanggalMulai/tanggalSelesai/jamSelesai.
+  tanggalMulai: e.start_date ? String(e.start_date).slice(0, 10) : e.start_date,
+  tanggalSelesai: e.end_date ? String(e.end_date).slice(0, 10) : e.end_date,
+  jamMulai: e.start_time ? String(e.start_time).slice(0, 5) : '',
+  jamSelesai: e.end_time ? String(e.end_time).slice(0, 5) : '',
   kuota: Number(e.quota),
   pendaftar: Number(e.pendaftar ?? 0),
   harga: Number(e.price),
@@ -73,7 +77,12 @@ const fromApiEvent = e => ({
   rules: e.rules ?? [],
   organizers: e.organizers ?? [],
   sponsors: e.sponsors ?? [],
-  agenda: e.agenda ?? [],
+  // Organizer = komunitas penyelenggara; sponsor = teks dari form event. Bila
+  // kosong, jatuh ke data lama di tabel penghubung EO/sponsor.
+  organizer: e.community_name || e.organizers?.[0]?.organizer_name || '',
+  sponsor: e.sponsor_name || (e.sponsors ?? []).map(s => s.sponsor_name).filter(Boolean).join(', '),
+  // Rundown dari DB berbentuk { time, activity }.
+  agenda: (e.agenda ?? []).map(a => ({ jam: String(a.time ?? '').slice(0, 5), kegiatan: a.activity ?? '' })),
 });
 const fromApiKomunitas = c => ({
   id: c.id,
@@ -87,6 +96,7 @@ const fromApiKomunitas = c => ({
   coverImage: c.cover_image ?? '',
   admin: c.admin,
   rules: c.rules ?? [],
+  galeri: c.gallery ?? [],
 });
 const fromApiStory = s => ({
   id: s.id,
@@ -167,13 +177,13 @@ function reducer(state, action) {
 // ═══════════════════════════════════════════════════════════════
 const fmt = (n) => Number(n).toLocaleString("id-ID");
 const fmtDate = (d) =>
-  new Date(d + "T00:00:00").toLocaleDateString("id-ID", {
+  new Date(String(d).slice(0, 10) + "T00:00:00").toLocaleDateString("id-ID", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
 const fmtShortDate = (d) =>
-  new Date(d + "T00:00:00").toLocaleDateString("id-ID", {
+  new Date(String(d).slice(0, 10) + "T00:00:00").toLocaleDateString("id-ID", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -2314,6 +2324,7 @@ function ClubsSection({ state, subPage, subParam, onNav, toast, loadData }) {
         name: reqForm.namaKlub,
         description: reqForm.deskripsi,
         category_id: reqForm.kategori ? Number(reqForm.kategori) : null,
+        type: "Eksternal",
         status: "pending",
         pic_name: reqForm.namaPIC,
         pic_email: reqForm.emailPIC,
